@@ -32,6 +32,10 @@
         .btn-press:active { transform: scale(0.98); }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 0.2s ease-out; }
+        .help-section { margin-bottom: 1.5rem; }
+        .help-title { font-weight: bold; color: #15803d; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .help-text { font-size: 0.875rem; color: #475569; line-height: 1.6; }
+        .help-badge { background-color: #dcfce7; color: #166534; font-size: 0.75rem; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-weight: bold; margin-right: 0.25rem; }
     </style>
 </head>
 <body>
@@ -191,10 +195,6 @@
 
             if (item.type === 'lower_is_better') {
                 // 低い方が良い (タイムなど)
-                // 例: min=20s(0点), max=8s(100点)
-                // val=14s -> range=12, diff=14-20=-6 (おかしい)
-                // 正解: val=20 -> 0%, val=8 -> 100%
-                // (min - val) / (min - max) * 100
                 const rangeRev = min - max;
                 const diff = min - val;
                 score = (diff / rangeRev) * 100;
@@ -992,7 +992,6 @@
 
                     const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
                     const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
-                    // Compare score is calculated based on THEIR age/gender criteria (fair comparison of ability?) or YOUR criteria?
                     const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
 
                     return {
