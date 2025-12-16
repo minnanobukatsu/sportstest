@@ -18,8 +18,11 @@
     <!-- Rechartsの依存ライブラリ -->
     <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     
-    <!-- Recharts (グラフ描画用 - 安定版を指定) -->
+    <!-- Recharts (グラフ描画用) -->
     <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+
+    <!-- html2canvas (画像保存用) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         body { background-color: #f1f5f9; color: #334155; font-family: sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -35,7 +38,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
         const RechartsObj = window.Recharts || {};
         const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } = RechartsObj;
 
@@ -62,12 +65,17 @@
         const IconChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="9 18 15 12 9 6"/></svg>;
         const IconHelp = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>;
         const IconX = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const IconDownload = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
 
         // --- データ管理 (LocalStorage) ---
         const DB_KEY_PROFILES = 'sports_test_profiles';
         const DB_KEY_RECORDS = 'sports_test_records';
         const DB_KEY_ITEMS = 'sports_test_items';
-        const DB_KEY_TUTORIAL_DONE = 'sports_test_tutorial_done'; // チュートリアル完了フラグ
+        const DB_KEY_TUTORIAL_DONE = 'sports_test_tutorial_done';
+        
+        // Drafts (Auto-save) keys
+        const DB_KEY_DRAFT_PREFIX = 'sports_test_draft_';
+        const DB_KEY_DRAFT_GROUP = 'sports_test_draft_group';
 
         const getLocalData = (key, defaultVal = []) => {
             try {
@@ -111,21 +119,18 @@
         const GROUPS = ['走力', '敏捷性', '筋力', '柔軟性', '跳躍力', '投力', '器用さ', 'その他'];
 
         // --- ロジック ---
-        // 生年月日から年齢・学年を計算する関数
         const calculateAgeInfo = (birthDateStr) => {
             if (!birthDateStr) return { age: null, grade: '', label: '' };
 
             const birthDate = new Date(birthDateStr);
             const today = new Date();
             
-            // 満年齢計算
             let age = today.getFullYear() - birthDate.getFullYear();
             const m = today.getMonth() - birthDate.getMonth();
             if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
                 age--;
             }
 
-            // 学年計算 (日本の学校制度: 4/2生まれ〜翌4/1生まれ)
             const currentYear = today.getFullYear();
             const currentFiscalYear = (today.getMonth() + 1) >= 4 ? currentYear : currentYear - 1;
 
@@ -133,7 +138,6 @@
             const birthMonth = birthDate.getMonth() + 1;
             const birthDay = birthDate.getDate();
             
-            // 早生まれ(1/1~4/1)の場合は年度としては前年生まれ扱い
             let birthFiscalYear = birthYear;
             if (birthMonth < 4 || (birthMonth === 4 && birthDay === 1)) {
                 birthFiscalYear = birthYear - 1;
@@ -162,7 +166,6 @@
 
         const parseAge = (ageStr) => {
             if (!ageStr) return 10;
-            // 互換性のため、文字列から数値を抽出して返す
             const match = ageStr.match(/\d+/);
             if (match) return parseInt(match[0], 10);
             return 10;
@@ -272,15 +275,13 @@
                                 <li><strong>みんなで記録:</strong> 家族など複数人の記録を、画面を切り替えずにまとめて入力できます。</li>
                             </ul>
                         </section>
-
                         <section>
                             <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-                                成長を確認する
+                                記録を保存・共有する
                             </h4>
                             <p className="text-sm leading-relaxed">
-                                ホーム画面では、<strong>レーダーチャート</strong>で能力バランスを、<strong>折れ線グラフ</strong>で成長の履歴を確認できます。<br/>
-                                右上のメンバーボタンで表示する人を切り替えられます。
+                                履歴画面で過去の記録をタップすると詳細が見れます。そこから<strong>「画像として保存」</strong>ボタンを押すと、記録証のように画像をダウンロードできます。
                             </p>
                         </section>
                     </div>
@@ -292,6 +293,84 @@
                 </div>
             </div>
         );
+
+        // --- 詳細＆画像保存モーダル ---
+        const RecordDetailModal = ({ record, profile, testItems, onClose }) => {
+            const modalRef = useRef(null);
+            const activeItems = testItems.filter(i => i.active);
+
+            const handleSaveImage = async () => {
+                if (modalRef.current) {
+                    try {
+                        const canvas = await html2canvas(modalRef.current, {
+                            backgroundColor: '#ffffff',
+                            scale: 2 // 高画質化
+                        });
+                        const link = document.createElement('a');
+                        link.download = `sports_test_${profile.name}_${new Date(record.date).toISOString().slice(0,10)}.png`;
+                        link.href = canvas.toDataURL();
+                        link.click();
+                    } catch (error) {
+                        console.error('Image save failed:', error);
+                        alert('画像の保存に失敗しました。');
+                    }
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                            <h3 className="font-bold text-lg text-slate-800">記録詳細</h3>
+                            <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition">
+                                <IconX className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        
+                        {/* Capture Area */}
+                        <div ref={modalRef} className="p-6 bg-white">
+                            <div className="text-center mb-6">
+                                <div className="text-green-600 font-bold tracking-widest text-xs uppercase mb-1">SPORTS TEST RECORD</div>
+                                <h2 className="text-2xl font-bold text-slate-800">{new Date(record.date).toLocaleDateString('ja-JP')}</h2>
+                                <div className="text-sm text-slate-500 mt-1">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-3 mb-8">
+                                <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}`}>
+                                    {profile.name[0]}
+                                </div>
+                                <div className="text-xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal ml-1">さん</span></div>
+                            </div>
+
+                            <div className="space-y-3">
+                                {activeItems.map(item => {
+                                    const val = record.values[item.id];
+                                    return (
+                                        <div key={item.id} className="flex justify-between items-center border-b border-slate-100 pb-2 last:border-0">
+                                            <div className="text-sm font-bold text-slate-600">{item.label}</div>
+                                            <div className="text-lg font-bold text-slate-800">
+                                                {val != null ? val : '-'}
+                                                <span className="text-xs text-slate-400 font-normal ml-1">{item.unit}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            <div className="mt-8 text-center text-[10px] text-slate-300">
+                                みんなのスポーツテスト
+                            </div>
+                        </div>
+                        
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto">
+                            <button onClick={handleSaveImage} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press flex items-center justify-center gap-2">
+                                <IconDownload className="w-5 h-5" /> 画像として保存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
 
         // --- メインコンポーネント ---
         function App() {
@@ -524,7 +603,6 @@
                 }
             }, [initialCreateMode, onModeReset]);
 
-            // 生年月日が変わったら年齢・学年を再計算
             useEffect(() => {
                 if (formData.birthdate) {
                     const info = calculateAgeInfo(formData.birthdate);
@@ -538,7 +616,6 @@
                 e.preventDefault();
                 if (!formData.name || !formData.birthdate) return;
                 
-                // ageフィールドには計算済みの文字列（例: "10歳 / 小4"）を入れておく
                 const newProfile = { 
                     ...formData, 
                     age: calculatedInfo.label, 
@@ -579,7 +656,6 @@
                                 <input required className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="山田 太郎" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                             </div>
                             
-                            {/* 生年月日入力 */}
                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
@@ -828,13 +904,22 @@
         }
 
         function RecordEntry({ profile, testItems, onBack, onComplete, currentRecords, onUpdateRecords }) {
-            const [values, setValues] = useState({});
+            // Load draft data on mount
+            const [values, setValues] = useState(() => {
+                const draft = getLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
+                return draft;
+            });
             const activeItems = testItems.filter(i => i.active);
             const groupedItems = activeItems.reduce((acc, item) => {
                 if (!acc[item.group]) acc[item.group] = [];
                 acc[item.group].push(item);
                 return acc;
             }, {});
+
+            // Save draft whenever values change
+            useEffect(() => {
+                setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, values);
+            }, [values, profile.id]);
 
             const handleSubmit = (e) => {
                 e.preventDefault();
@@ -851,6 +936,10 @@
                     values: cleanValues
                 };
                 onUpdateRecords([...currentRecords, newRecord]);
+                
+                // Clear draft after success
+                setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
+                
                 onComplete();
             };
 
@@ -896,7 +985,14 @@
         function GroupRecordView({ profiles, testItems, onBack, onComplete, currentRecords, onUpdateRecords }) {
             const [step, setStep] = useState('select_members');
             const [selectedProfileIds, setSelectedProfileIds] = useState([]);
-            const [values, setValues] = useState({});
+            
+            // Load/Save Draft
+            const [values, setValues] = useState(() => getLocalData(DB_KEY_DRAFT_GROUP, {}));
+            
+            useEffect(() => {
+                setLocalData(DB_KEY_DRAFT_GROUP, values);
+            }, [values]);
+
             const activeItems = testItems.filter(i => i.active);
 
             const handleSave = () => {
@@ -919,8 +1015,22 @@
                     }
                 });
                 onUpdateRecords([...currentRecords, ...newRecords]);
+                
+                // Clear Draft
+                setLocalData(DB_KEY_DRAFT_GROUP, {});
+                
                 if (selectedProfileIds.length > 0) onComplete(selectedProfileIds[0]);
                 else onBack();
+            };
+
+            const handleInputChange = (profileId, itemId, val) => {
+                setValues(prev => ({
+                    ...prev,
+                    [profileId]: {
+                        ...(prev[profileId] || {}),
+                        [itemId]: val
+                    }
+                }));
             };
 
             if (step === 'select_members') {
@@ -982,7 +1092,7 @@
                                             <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-50 last:border-0 pb-2 last:pb-0">
                                                 <div className="flex-1"><div className="font-bold text-slate-700 text-sm">{item.label}</div><div className="text-[10px] text-slate-400">{item.group}</div></div>
                                                 <div className="w-32 relative">
-                                                    <input type="number" step="0.1" className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg font-bold text-lg text-right focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="-" value={(values[pid] && values[pid][item.id]) || ''} onChange={(e) => setValues(prev => ({ ...prev, [pid]: { ...(prev[pid] || {}), [item.id]: e.target.value } }))} />
+                                                    <input type="number" step="0.1" className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg font-bold text-lg text-right focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="-" value={(values[pid] && values[pid][item.id]) || ''} onChange={(e) => handleInputChange(pid, item.id, e.target.value)} />
                                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">{item.unit}</span>
                                                 </div>
                                             </div>
@@ -1006,6 +1116,8 @@
         function HistoryView({ profile, records, testItems, onBack, onUpdateRecords, allRecords }) {
             const [selectedItemId, setSelectedItemId] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+            const [detailModalRecord, setDetailModalRecord] = useState(null); // Detail Modal state
+
             const activeItems = testItems.filter(i => i.active);
 
             useEffect(() => {
@@ -1043,9 +1155,9 @@
                             </div>
                             
                             <div className="space-y-3">
-                                {sortedRecords.length > 0 && <div className="text-xs font-bold text-slate-400 ml-2">履歴 ({sortedRecords.length}件)</div>}
+                                {sortedRecords.length > 0 && <div className="text-xs font-bold text-slate-400 ml-2">履歴 ({sortedRecords.length}件) - タップで詳細</div>}
                                 {[...sortedRecords].reverse().map(record => (
-                                    <div key={record.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group">
+                                    <div key={record.id} onClick={() => setDetailModalRecord(record)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group cursor-pointer hover:bg-slate-50 transition">
                                         <div className="flex items-center gap-3">
                                             <div className="bg-green-50 p-2 rounded-lg text-green-600"><IconCalendar className="w-5 h-5" /></div>
                                             <div>
@@ -1065,6 +1177,16 @@
                                 ))}
                             </div>
                         </>
+                    )}
+                    
+                    {/* Detail Modal */}
+                    {detailModalRecord && (
+                        <RecordDetailModal 
+                            record={detailModalRecord} 
+                            profile={profile} 
+                            testItems={testItems} 
+                            onClose={() => setDetailModalRecord(null)} 
+                        />
                     )}
                 </div>
             );
