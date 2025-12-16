@@ -68,6 +68,9 @@
         const IconDownload = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
         const IconShare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>;
         const IconList = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
+        const IconCopy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const IconLink = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>;
+        const IconClipboard = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>;
 
         // --- データ管理 (LocalStorage) ---
         const DB_KEY_PROFILES = 'sports_test_profiles';
@@ -207,6 +210,46 @@
             return Math.min(100, Math.max(0, score));
         };
 
+        // --- Text Parsing for Share ---
+        const parseShareText = (text) => {
+            try {
+                const lines = text.split('\n');
+                const data = { values: {} };
+                
+                lines.forEach(line => {
+                    if (line.includes('名前:')) {
+                        const parts = line.split('名前:')[1].trim().split('(');
+                        data.name = parts[0].trim();
+                        if (parts[1]) data.age = parts[1].split('/')[0].trim();
+                        // 簡易的な性別判定 (記録テキストに含まれていれば)
+                        if (line.includes('(男)')) data.gender = 'male';
+                        else if (line.includes('(女)')) data.gender = 'female';
+                        else data.gender = 'male'; // default
+                    }
+                    if (line.includes('日付:')) {
+                        data.dateStr = line.split('日付:')[1].trim();
+                    }
+                    if (line.includes('・')) {
+                        const parts = line.split('・')[1].split(':');
+                        const label = parts[0].trim();
+                        const valueStr = parts[1].trim();
+                        const valueMatch = valueStr.match(/[\d\.]+/);
+                        if (valueMatch) {
+                             const item = DEFAULT_ITEMS.find(i => i.label === label);
+                             if (item) {
+                                 data.values[item.id] = Number(valueMatch[0]);
+                             }
+                        }
+                    }
+                });
+
+                if (!data.name || Object.keys(data.values).length === 0) return null;
+                return data;
+            } catch (e) {
+                return null;
+            }
+        };
+
         // --- 共通コンポーネント ---
         const InputGroup = ({ label, suffix, placeholder, value, onChange }) => (
             <div>
@@ -280,10 +323,11 @@
                         <section>
                             <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-                                記録を保存・共有する
+                                共有・比較する
                             </h4>
                             <p className="text-sm leading-relaxed">
-                                履歴画面で過去の記録をタップすると詳細が見れます。そこから<strong>「画像として保存」</strong>ボタンを押すと、記録証のように画像をダウンロードできます。
+                                履歴の詳細画面で<strong>「テキストコピー」</strong>を押し、LINEなどで友達に送ります。<br/>
+                                受け取った人は、ホーム画面の<strong>「友達と比較」</strong>ボタンからそのテキストを貼り付けると、記録を重ねて比較できます。
                             </p>
                         </section>
                     </div>
@@ -295,6 +339,46 @@
                 </div>
             </div>
         );
+
+        // --- 比較データ入力モーダル ---
+        const CompareImportModal = ({ onClose, onImport }) => {
+            const [text, setText] = useState('');
+
+            const handleImport = () => {
+                const data = parseShareText(text);
+                if (data) {
+                    onImport(data);
+                    onClose();
+                } else {
+                    alert('データ形式が正しくありません。\nコピーした「【スポーツテスト記録】...」のテキスト全体を貼り付けてください。');
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 flex flex-col space-y-4" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                <IconUsers className="text-orange-500 w-5 h-5" /> 友達と比較
+                            </h3>
+                            <button onClick={onClose}><IconX className="text-slate-400 w-5 h-5"/></button>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            友達から送られてきた記録テキストを<br/>ここに貼り付けてください。
+                        </p>
+                        <textarea 
+                            className="w-full h-32 p-3 border border-slate-200 rounded-xl bg-slate-50 text-xs focus:ring-2 focus:ring-orange-500 outline-none"
+                            placeholder="【スポーツテスト記録】..."
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                        />
+                        <button onClick={handleImport} className="w-full py-3 bg-orange-500 text-white font-bold rounded-xl shadow-lg hover:bg-orange-600 transition btn-press">
+                            比較を開始
+                        </button>
+                    </div>
+                </div>
+            );
+        };
 
         // --- 詳細＆画像保存モーダル ---
         const RecordDetailModal = ({ record, profile, testItems, onClose }) => {
@@ -327,7 +411,6 @@
                                     });
                                 } catch (shareError) {
                                     if (shareError.name !== 'AbortError') {
-                                        console.error('Share failed:', shareError);
                                         // 共有失敗時はダウンロードにフォールバック
                                         const link = document.createElement('a');
                                         link.download = fileName;
@@ -349,6 +432,65 @@
                         alert('画像の保存に失敗しました。');
                     }
                 }
+            };
+
+            const handleCopyText = () => {
+                const dateStr = new Date(record.date).toLocaleDateString('ja-JP');
+                const genderStr = profile.gender === 'male' ? '(男)' : '(女)';
+                
+                let text = `【スポーツテスト記録】\n`;
+                text += `日付: ${dateStr}\n`;
+                text += `名前: ${profile.name} (${profile.age}) ${genderStr}\n\n`;
+
+                activeItems.forEach(item => {
+                    const val = record.values[item.id];
+                    if (val != null) {
+                        text += `・${item.label}: ${val}${item.unit}\n`;
+                    }
+                });
+
+                text += `\n#みんなのスポーツテスト`;
+
+                // Try Clipboard API
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
+                    }).catch(err => {
+                        console.error('Copy failed', err);
+                        // Fallback to execCommand
+                        copyToClipboardFallback(text);
+                    });
+                } else {
+                    copyToClipboardFallback(text);
+                }
+            };
+
+            const copyToClipboardFallback = (text) => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                
+                // Avoid scrolling to bottom
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.position = "fixed";
+
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                         alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
+                    } else {
+                         alert('コピーに失敗しました。');
+                    }
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                    alert('コピーに失敗しました。');
+                }
+
+                document.body.removeChild(textArea);
             };
 
             return (
@@ -396,9 +538,12 @@
                             </div>
                         </div>
                         
-                        <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto">
-                            <button onClick={handleSaveImage} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press flex items-center justify-center gap-2">
-                                <IconShare className="w-5 h-5" /> 画像を保存 / 共有
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto grid grid-cols-2 gap-3">
+                             <button onClick={handleCopyText} className="py-3 bg-white text-slate-700 border border-slate-200 font-bold rounded-xl shadow-sm btn-press flex items-center justify-center gap-2 hover:bg-slate-50">
+                                <IconCopy className="w-5 h-5" /> テキストコピー
+                            </button>
+                            <button onClick={handleSaveImage} className="py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press flex items-center justify-center gap-2 hover:bg-green-700">
+                                <IconShare className="w-5 h-5" /> 画像保存
                             </button>
                         </div>
                     </div>
@@ -415,6 +560,8 @@
             const [view, setView] = useState('loading');
             const [autoCreateMode, setAutoCreateMode] = useState(false);
             const [showHelp, setShowHelp] = useState(false);
+            const [compareData, setCompareData] = useState(null);
+            const [showCompareInput, setShowCompareInput] = useState(false);
 
             // 初期データロード
             useEffect(() => {
@@ -431,7 +578,6 @@
                 setRecords(loadedRecords);
                 setTestItems(loadedItems);
 
-                // チュートリアル確認
                 const tutorialDone = localStorage.getItem(DB_KEY_TUTORIAL_DONE);
                 if (!tutorialDone) {
                     setShowHelp(true);
@@ -572,6 +718,9 @@
                                 onRecord={() => setView('entry')}
                                 onGroupRecord={() => setView('group_entry')}
                                 multiProfiles={profiles.length > 1}
+                                compareData={compareData} 
+                                onClearCompare={() => setCompareData(null)}
+                                onShowCompareInput={() => setShowCompareInput(true)}
                             />
                         )}
                         {view === 'entry' && currentProfile && (
@@ -603,8 +752,9 @@
                         )}
                     </main>
 
-                    {/* Help Modal */}
+                    {/* Modals */}
                     {showHelp && <HelpModal onClose={handleCloseHelp} />}
+                    {showCompareInput && <CompareImportModal onClose={() => setShowCompareInput(false)} onImport={setCompareData} />}
 
                     {/* Bottom Nav (入力画面では隠す) */}
                     {selectedProfileId && view !== 'profiles' && view !== 'settings' && view !== 'group_entry' && view !== 'entry' && (
@@ -775,11 +925,13 @@
             );
         }
 
-        function Dashboard({ profile, records, testItems, onRecord, onGroupRecord, multiProfiles }) {
+        function Dashboard({ profile, records, testItems, onRecord, onGroupRecord, multiProfiles, compareData, onClearCompare, onShowCompareInput }) {
             const [graphItemId, setGraphItemId] = useState('');
             const [activeTab, setActiveTab] = useState('radar'); // radar or history
             const activeItems = testItems.filter(i => i.active);
             const age = useMemo(() => parseAge(profile.age), [profile.age]);
+            // Compare Data parsing
+            const compareAge = useMemo(() => compareData ? parseAge(compareData.age) : 10, [compareData]);
 
             // Sort ascending for graph line
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -793,31 +945,36 @@
             const radarData = useMemo(() => {
                 if (!latestRecord) return [];
                 const groupScores = {};
-                GROUPS.forEach(g => { groupScores[g] = { currentTotal: 0, prevTotal: 0, count: 0 }; });
+                GROUPS.forEach(g => { groupScores[g] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 }; });
 
                 activeItems.forEach(item => {
                     const cVal = latestRecord.values[item.id];
                     const pVal = previousRecord?.values[item.id];
+                    const cmpVal = compareData?.values[item.id];
+
                     const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
                     const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
+                    // Compare score is calculated based on THEIR age/gender criteria (fair comparison of ability?) or YOUR criteria?
+                    const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
 
-                    if (!groupScores[item.group]) groupScores[item.group] = { currentTotal: 0, prevTotal: 0, count: 0 };
+                    if (!groupScores[item.group]) groupScores[item.group] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 };
+                    
                     if (cVal != null) {
                         groupScores[item.group].currentTotal += cScore;
                         groupScores[item.group].count++;
                     }
-                    if (pVal != null) {
-                        groupScores[item.group].prevTotal += pScore;
-                    }
+                    if (pVal != null) groupScores[item.group].prevTotal += pScore;
+                    if (cmpVal != null) groupScores[item.group].compareTotal += cmpScore;
                 });
 
                 return Object.keys(groupScores).map(group => ({
                     subject: group,
                     A: groupScores[group].count > 0 ? groupScores[group].currentTotal / groupScores[group].count : 0,
                     B: groupScores[group].count > 0 ? groupScores[group].prevTotal / groupScores[group].count : 0,
+                    C: (compareData && groupScores[group].count > 0) ? groupScores[group].compareTotal / groupScores[group].count : 0,
                     fullMark: 100
-                })).filter(d => d.A > 0 || d.B > 0 || ['走力', '筋力', '跳躍力'].includes(d.subject));
-            }, [latestRecord, previousRecord, activeItems, age, profile.gender]);
+                })).filter(d => d.A > 0 || d.B > 0 || d.C > 0 || ['走力', '筋力', '跳躍力'].includes(d.subject));
+            }, [latestRecord, previousRecord, compareData, activeItems, age, profile.gender]);
 
             const historyChartData = sortedRecords.map(r => ({
                 date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }),
@@ -828,14 +985,34 @@
 
             return (
                 <div className="space-y-6 animate-fade-in">
+                    {/* Compare Alert */}
+                    {compareData && (
+                        <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <IconUsers className="text-orange-500 w-5 h-5" />
+                                <div>
+                                    <div className="font-bold text-orange-800 text-sm">比較モード中</div>
+                                    <div className="text-xs text-orange-600">VS {compareData.name}さん</div>
+                                </div>
+                            </div>
+                            <button onClick={onClearCompare} className="text-xs bg-white border border-orange-200 text-orange-600 px-3 py-1.5 rounded-lg font-bold">終了</button>
+                        </div>
+                    )}
+
                     {/* User Profile Card */}
                     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center justify-between">
                         <div>
                             <div className="text-xs text-slate-400 font-bold mb-1">{CATEGORIES[profile.category]}</div>
                             <h2 className="text-2xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal text-slate-500 ml-2">さん</span></h2>
                         </div>
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
-                            {profile.name[0]}
+                        <div className="flex gap-2">
+                            {/* Compare Button */}
+                            <button onClick={onShowCompareInput} className="bg-orange-100 text-orange-600 p-2 rounded-full hover:bg-orange-200 transition" title="友達と比較">
+                                <IconUsers className="w-5 h-5" />
+                            </button>
+                            <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
+                                {profile.name[0]}
+                            </div>
                         </div>
                     </div>
 
@@ -855,12 +1032,19 @@
                             <div className="p-4">
                                 {activeTab === 'radar' && (
                                     <div className="animate-fade-in">
-                                        <div className="flex justify-end mb-2">
-                                            {previousRecord && (
-                                                <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>今回</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 rounded-full"></div>前回</div>
+                                        <div className="flex justify-end mb-2 flex-wrap gap-2">
+                                            {compareData ? (
+                                                <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>自分</div>
+                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-400 rounded-full"></div>{compareData.name}</div>
                                                 </div>
+                                            ) : (
+                                                previousRecord && (
+                                                    <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
+                                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>今回</div>
+                                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 rounded-full"></div>前回</div>
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                         <div className="h-[250px] w-full -ml-2">
@@ -869,7 +1053,11 @@
                                                     <PolarGrid stroke="#e2e8f0" />
                                                     <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} />
                                                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                                    <Radar name="前回" dataKey="B" stroke="#cbd5e1" strokeWidth={2} fill="#cbd5e1" fillOpacity={0.2} />
+                                                    
+                                                    {!compareData && <Radar name="前回" dataKey="B" stroke="#cbd5e1" strokeWidth={2} fill="#cbd5e1" fillOpacity={0.2} />}
+                                                    
+                                                    {compareData && <Radar name="相手" dataKey="C" stroke="#fb923c" strokeWidth={3} fill="#fdba74" fillOpacity={0.4} />}
+
                                                     <Radar name="今回" dataKey="A" stroke="#16a34a" strokeWidth={3} fill="#22c55e" fillOpacity={0.4} />
                                                 </RadarChart>
                                             </ResponsiveContainer>
@@ -1188,6 +1376,10 @@
             const [selectedItemId, setSelectedItemId] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [detailModalRecord, setDetailModalRecord] = useState(null);
+            
+            // Shared Modal State
+            const [showShareModal, setShowShareModal] = useState(false);
+            const [shareRecord, setShareRecord] = useState(null);
 
             const activeItems = testItems.filter(i => i.active);
 
@@ -1205,6 +1397,12 @@
                     setDeleteConfirmId(recordId);
                     setTimeout(() => setDeleteConfirmId(null), 3000);
                 }
+            };
+            
+            const handleOpenShare = () => {
+                setShareRecord(detailModalRecord);
+                setDetailModalRecord(null); // Close detail modal
+                setShowShareModal(true);
             };
 
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1297,7 +1495,7 @@
                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                                                         <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                         <Line connectNulls type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ fill: '#16a34a', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
                                                     </LineChart>
                                                 </ResponsiveContainer>
@@ -1315,7 +1513,17 @@
                             record={detailModalRecord} 
                             profile={profile} 
                             testItems={testItems} 
-                            onClose={() => setDetailModalRecord(null)} 
+                            onClose={() => setDetailModalRecord(null)}
+                            onShare={handleOpenShare}
+                        />
+                    )}
+
+                    {/* Share Modal */}
+                    {showShareModal && shareRecord && (
+                        <ShareModal
+                            record={shareRecord}
+                            profile={profile}
+                            onClose={() => setShowShareModal(false)}
                         />
                     )}
                 </div>
