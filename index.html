@@ -40,7 +40,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
         const RechartsObj = window.Recharts || {};
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } = RechartsObj;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } = RechartsObj;
 
         // --- アイコン定義 (SVG) ---
         const IconUser = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
@@ -176,40 +176,6 @@
             return 10;
         };
 
-        const getTargetValue = (itemId, age, gender) => {
-            const effectiveAge = Math.min(18, Math.max(6, age));
-            const isMale = gender === 'male';
-            const growthFactor = effectiveAge - 6;
-
-            switch (itemId) {
-                case 'courtSprint': return Math.max(4.0, 10.0 - (growthFactor * 0.4));
-                case 'courtShuttle': return Math.max(8.0, 16.0 - (growthFactor * 0.5));
-                case 'sideSteps': return 25 + (growthFactor * (isMale ? 3.5 : 3.0));
-                case 'sitUps': return 12 + (growthFactor * 2.0);
-                case 'trunkExtension': return 30 + (growthFactor * 2.0);
-                case 'verticalJump': return 25 + (growthFactor * (isMale ? 3.5 : 2.5));
-                case 'standingLongJump': return 115 + (growthFactor * (isMale ? 12 : 10));
-                case 'runningLongJump': return 200 + (growthFactor * 15);
-                case 'ballThrow': return 8 + (growthFactor * (isMale ? 3.0 : 2.0));
-                case 'origamiTotal': return 10;
-                default: return 100;
-            }
-        };
-
-        const calculateScore = (val, item, age, gender) => {
-            if (val === null || val === undefined) return 0;
-            const target = getTargetValue(item.id, age, gender);
-            let score = 0;
-            if (item.type === 'lower_is_better') {
-                if (val <= target) return 100;
-                const zeroPoint = target * 2.5;
-                score = ((zeroPoint - val) / (zeroPoint - target)) * 100;
-            } else {
-                score = (val / target) * 100;
-            }
-            return Math.min(100, Math.max(0, score));
-        };
-
         // --- Text Parsing for Share ---
         const parseShareText = (text) => {
             try {
@@ -221,10 +187,9 @@
                         const parts = line.split('名前:')[1].trim().split('(');
                         data.name = parts[0].trim();
                         if (parts[1]) data.age = parts[1].split('/')[0].trim();
-                        // 簡易的な性別判定 (記録テキストに含まれていれば)
                         if (line.includes('(男)')) data.gender = 'male';
                         else if (line.includes('(女)')) data.gender = 'female';
-                        else data.gender = 'male'; // default
+                        else data.gender = 'male'; 
                     }
                     if (line.includes('日付:')) {
                         data.dateStr = line.split('日付:')[1].trim();
@@ -323,11 +288,10 @@
                         <section>
                             <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-                                共有・比較する
+                                記録を保存・共有する
                             </h4>
                             <p className="text-sm leading-relaxed">
-                                履歴の詳細画面で<strong>「テキストコピー」</strong>を押し、LINEなどで友達に送ります。<br/>
-                                受け取った人は、ホーム画面の<strong>「友達と比較」</strong>ボタンからそのテキストを貼り付けると、記録を重ねて比較できます。
+                                履歴画面で過去の記録をタップすると詳細が見れます。そこから<strong>「画像として保存」</strong>ボタンを押すと、記録証のように画像をダウンロードできます。
                             </p>
                         </section>
                     </div>
@@ -390,7 +354,7 @@
                     try {
                         const canvas = await html2canvas(modalRef.current, {
                             backgroundColor: '#ffffff',
-                            scale: 2 // 高画質化
+                            scale: 2 
                         });
                         
                         canvas.toBlob(async (blob) => {
@@ -401,7 +365,6 @@
                             const fileName = `sports_test_${profile.name}_${new Date(record.date).toISOString().slice(0,10)}.png`;
                             const file = new File([blob], fileName, { type: 'image/png' });
 
-                            // Web Share API (スマホ向け: 写真アプリへの保存やLINE共有など)
                             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                                 try {
                                     await navigator.share({
@@ -411,7 +374,6 @@
                                     });
                                 } catch (shareError) {
                                     if (shareError.name !== 'AbortError') {
-                                        // 共有失敗時はダウンロードにフォールバック
                                         const link = document.createElement('a');
                                         link.download = fileName;
                                         link.href = canvas.toDataURL();
@@ -419,7 +381,6 @@
                                     }
                                 }
                             } else {
-                                // PCや非対応ブラウザ向け: ダウンロード
                                 const link = document.createElement('a');
                                 link.download = fileName;
                                 link.href = canvas.toDataURL();
@@ -451,13 +412,11 @@
 
                 text += `\n#みんなのスポーツテスト`;
 
-                // Try Clipboard API
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
                         alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
                     }).catch(err => {
                         console.error('Copy failed', err);
-                        // Fallback to execCommand
                         copyToClipboardFallback(text);
                     });
                 } else {
@@ -468,28 +427,19 @@
             const copyToClipboardFallback = (text) => {
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
-                
-                // Avoid scrolling to bottom
                 textArea.style.top = "0";
                 textArea.style.left = "0";
                 textArea.style.position = "fixed";
-
                 document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
-
                 try {
                     const successful = document.execCommand('copy');
-                    if (successful) {
-                         alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
-                    } else {
-                         alert('コピーに失敗しました。');
-                    }
+                    if (successful) alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
+                    else alert('コピーに失敗しました。');
                 } catch (err) {
-                    console.error('Fallback copy failed', err);
                     alert('コピーに失敗しました。');
                 }
-
                 document.body.removeChild(textArea);
             };
 
@@ -503,21 +453,18 @@
                             </button>
                         </div>
                         
-                        {/* Capture Area */}
                         <div ref={modalRef} className="p-6 bg-white">
                             <div className="text-center mb-6">
                                 <div className="text-green-600 font-bold tracking-widest text-xs uppercase mb-1">SPORTS TEST RECORD</div>
                                 <h2 className="text-2xl font-bold text-slate-800">{new Date(record.date).toLocaleDateString('ja-JP')}</h2>
                                 <div className="text-sm text-slate-500 mt-1">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
                             </div>
-
                             <div className="flex items-center justify-center gap-3 mb-8">
                                 <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}`}>
                                     {profile.name[0]}
                                 </div>
                                 <div className="text-xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal ml-1">さん</span></div>
                             </div>
-
                             <div className="space-y-3">
                                 {activeItems.map(item => {
                                     const val = record.values[item.id];
@@ -532,10 +479,7 @@
                                     );
                                 })}
                             </div>
-                            
-                            <div className="mt-8 text-center text-[10px] text-slate-300">
-                                みんなのスポーツテスト
-                            </div>
+                            <div className="mt-8 text-center text-[10px] text-slate-300">みんなのスポーツテスト</div>
                         </div>
                         
                         <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto grid grid-cols-2 gap-3">
@@ -579,9 +523,7 @@
                 setTestItems(loadedItems);
 
                 const tutorialDone = localStorage.getItem(DB_KEY_TUTORIAL_DONE);
-                if (!tutorialDone) {
-                    setShowHelp(true);
-                }
+                if (!tutorialDone) setShowHelp(true);
 
                 if (loadedProfiles.length > 0) {
                     setSelectedProfileId(loadedProfiles[0].id);
@@ -625,7 +567,6 @@
 
             const handleCloseHelp = () => {
                 setShowHelp(false);
-                // Set flag so it doesn't show again automatically
                 localStorage.setItem(DB_KEY_TUTORIAL_DONE, 'true');
             };
 
@@ -638,7 +579,6 @@
                     {/* Header */}
                     <header className="bg-white text-slate-800 p-3 shadow-sm sticky top-0 z-30 border-b border-slate-100">
                         <div className="max-w-3xl mx-auto flex justify-between items-center">
-                            {/* Logo / Home Link */}
                             <div className="flex items-center gap-2 cursor-pointer" onClick={handleLogoClick}>
                                 <div className="bg-green-600 text-white p-1.5 rounded-lg">
                                     <IconTrophy className="h-5 w-5" />
@@ -647,39 +587,19 @@
                                 <h1 className="text-lg font-bold tracking-tight text-slate-800 sm:hidden">スポテス</h1>
                             </div>
 
-                            {/* Right Actions */}
                             <div className="flex items-center gap-2">
-                                {/* Help Button (New) */}
-                                <button 
-                                    onClick={() => setShowHelp(true)} 
-                                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition"
-                                    title="使い方"
-                                >
+                                <button onClick={() => setShowHelp(true)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition" title="使い方">
                                     <IconHelp className="w-6 h-6" />
                                 </button>
-
-                                {/* Settings */}
-                                <button 
-                                    onClick={() => setView('settings')} 
-                                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition"
-                                    title="設定"
-                                >
+                                <button onClick={() => setView('settings')} className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition" title="設定">
                                     <IconSettings className="w-6 h-6" />
                                 </button>
-
-                                {/* Member Switcher / Add */}
-                                <button 
-                                    onClick={() => setView('profiles')} 
-                                    className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition ${view === 'profiles' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`}
-                                    title="メンバー確認・追加"
-                                >
+                                <button onClick={() => setView('profiles')} className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition ${view === 'profiles' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`} title="メンバー確認・追加">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${currentProfile ? (currentProfile.gender === 'male' ? 'bg-blue-400' : 'bg-pink-400') : 'bg-slate-300'}`}>
                                         {currentProfile ? currentProfile.name[0] : <IconUser className="w-5 h-5" />}
                                     </div>
                                     <div className="flex flex-col items-start">
-                                        <span className="text-xs font-bold leading-none max-w-[80px] truncate">
-                                            {currentProfile ? currentProfile.name : 'ゲスト'}
-                                        </span>
+                                        <span className="text-xs font-bold leading-none max-w-[80px] truncate">{currentProfile ? currentProfile.name : 'ゲスト'}</span>
                                         <span className="text-[10px] text-slate-400 leading-none mt-0.5">メンバー管理</span>
                                     </div>
                                     <IconChevronRight className="w-4 h-4 text-slate-300" />
@@ -926,62 +846,41 @@
         }
 
         function Dashboard({ profile, records, testItems, onRecord, onGroupRecord, multiProfiles, compareData, onClearCompare, onShowCompareInput }) {
-            const [graphItemId, setGraphItemId] = useState('');
-            const [activeTab, setActiveTab] = useState('radar'); // radar or history
+            const [selectedItemId, setSelectedItemId] = useState(testItems.length > 0 ? testItems[0].id : '');
+            
+            // タブを削除し、最新記録と推移グラフを両方表示するか、またはメインを推移グラフにする
+            // ここでは「種目ごとの詳細」をメインにする
+            
             const activeItems = testItems.filter(i => i.active);
-            const age = useMemo(() => parseAge(profile.age), [profile.age]);
-            // Compare Data parsing
-            const compareAge = useMemo(() => compareData ? parseAge(compareData.age) : 10, [compareData]);
 
-            // Sort ascending for graph line
+            // 初期選択
+            useEffect(() => {
+                if (!selectedItemId && activeItems.length > 0) {
+                    setSelectedItemId(activeItems[0].id);
+                }
+            }, [activeItems]);
+
+            const currentItem = activeItems.find(i => i.id === selectedItemId);
+
+            // Sort ascending for graph
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
             const latestRecord = sortedRecords.length > 0 ? sortedRecords[sortedRecords.length - 1] : null;
             const previousRecord = sortedRecords.length > 1 ? sortedRecords[sortedRecords.length - 2] : null;
 
-            useEffect(() => {
-                if (!graphItemId && activeItems.length > 0) setGraphItemId(activeItems[0].id);
-            }, [activeItems]);
-
-            const radarData = useMemo(() => {
-                if (!latestRecord) return [];
-                const groupScores = {};
-                GROUPS.forEach(g => { groupScores[g] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 }; });
-
-                activeItems.forEach(item => {
-                    const cVal = latestRecord.values[item.id];
-                    const pVal = previousRecord?.values[item.id];
-                    const cmpVal = compareData?.values[item.id];
-
-                    const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
-                    const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
-                    // Compare score is calculated based on THEIR age/gender criteria (fair comparison of ability?) or YOUR criteria?
-                    const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
-
-                    if (!groupScores[item.group]) groupScores[item.group] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 };
-                    
-                    if (cVal != null) {
-                        groupScores[item.group].currentTotal += cScore;
-                        groupScores[item.group].count++;
-                    }
-                    if (pVal != null) groupScores[item.group].prevTotal += pScore;
-                    if (cmpVal != null) groupScores[item.group].compareTotal += cmpScore;
-                });
-
-                return Object.keys(groupScores).map(group => ({
-                    subject: group,
-                    A: groupScores[group].count > 0 ? groupScores[group].currentTotal / groupScores[group].count : 0,
-                    B: groupScores[group].count > 0 ? groupScores[group].prevTotal / groupScores[group].count : 0,
-                    C: (compareData && groupScores[group].count > 0) ? groupScores[group].compareTotal / groupScores[group].count : 0,
-                    fullMark: 100
-                })).filter(d => d.A > 0 || d.B > 0 || d.C > 0 || ['走力', '筋力', '跳躍力'].includes(d.subject));
-            }, [latestRecord, previousRecord, compareData, activeItems, age, profile.gender]);
-
-            const historyChartData = sortedRecords.map(r => ({
-                date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }),
-                value: r.values[graphItemId]
+            // Chart Data Construction
+            const chartData = sortedRecords.map(r => ({
+                date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
+                value: r.values[selectedItemId]
             }));
 
-            const currentGraphItem = activeItems.find(i => i.id === graphItemId);
+            // Compare Data Injection
+            let referenceValue = null;
+            if (compareData && compareData.values[selectedItemId]) {
+                referenceValue = compareData.values[selectedItemId];
+            }
+
+            // Reverse Y-axis for time-based items (lower is better)
+            const isLowerBetter = currentItem?.type === 'lower_is_better';
 
             return (
                 <div className="space-y-6 animate-fade-in">
@@ -1005,103 +904,123 @@
                             <div className="text-xs text-slate-400 font-bold mb-1">{CATEGORIES[profile.category]}</div>
                             <h2 className="text-2xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal text-slate-500 ml-2">さん</span></h2>
                         </div>
-                        <div className="flex gap-2">
-                            {/* Compare Button */}
-                            <button onClick={onShowCompareInput} className="bg-orange-100 text-orange-600 p-2 rounded-full hover:bg-orange-200 transition" title="友達と比較">
-                                <IconUsers className="w-5 h-5" />
-                            </button>
-                            <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
-                                {profile.name[0]}
-                            </div>
+                        
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
+                            {profile.name[0]}
                         </div>
                     </div>
 
-                    {/* Stats Section */}
-                    {latestRecord ? (
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                            {/* Tabs */}
-                            <div className="flex border-b border-slate-100">
-                                <button onClick={() => setActiveTab('radar')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'radar' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>
-                                    能力バランス
-                                </button>
-                                <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'history' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>
-                                    成長の記録
-                                </button>
-                            </div>
-
-                            <div className="p-4">
-                                {activeTab === 'radar' && (
-                                    <div className="animate-fade-in">
-                                        <div className="flex justify-end mb-2 flex-wrap gap-2">
-                                            {compareData ? (
-                                                <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>自分</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-400 rounded-full"></div>{compareData.name}</div>
-                                                </div>
-                                            ) : (
-                                                previousRecord && (
-                                                    <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
-                                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>今回</div>
-                                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 rounded-full"></div>前回</div>
-                                                    </div>
-                                                )
-                                            )}
-                                        </div>
-                                        <div className="h-[250px] w-full -ml-2">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                                                    <PolarGrid stroke="#e2e8f0" />
-                                                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} />
-                                                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                                    
-                                                    {!compareData && <Radar name="前回" dataKey="B" stroke="#cbd5e1" strokeWidth={2} fill="#cbd5e1" fillOpacity={0.2} />}
-                                                    
-                                                    {compareData && <Radar name="相手" dataKey="C" stroke="#fb923c" strokeWidth={3} fill="#fdba74" fillOpacity={0.4} />}
-
-                                                    <Radar name="今回" dataKey="A" stroke="#16a34a" strokeWidth={3} fill="#22c55e" fillOpacity={0.4} />
-                                                </RadarChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 mt-2">
-                                            {activeItems.slice(0, 4).map(item => (
-                                                <StatBox key={item.id} label={item.label} value={latestRecord.values[item.id] != null ? `${latestRecord.values[item.id]}${item.unit}` : '-'} />
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'history' && (
-                                    <div className="animate-fade-in">
-                                        <div className="flex justify-end mb-4">
-                                            <select className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 outline-none font-bold text-slate-700" value={graphItemId} onChange={(e) => setGraphItemId(e.target.value)}>
-                                                {activeItems.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="h-64 w-full">
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <LineChart data={historyChartData} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} width={30} />
-                                                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
-                                                    <Line connectNulls type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                                                </LineChart>
-                                            </ResponsiveContainer>
-                                        </div>
-                                        <p className="text-center text-xs text-slate-400 mt-2 font-bold">{currentGraphItem?.label} ({currentGraphItem?.unit})</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-2xl shadow-sm p-10 text-center flex flex-col items-center gap-4 border border-slate-100">
-                            <div className="h-20 w-20 bg-green-50 rounded-full flex items-center justify-center mb-2"><IconActivity className="text-green-500 w-10 h-10" /></div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 text-lg mb-1">まだ記録がありません</h3>
-                                <p className="text-slate-400 text-sm">最初のテスト結果を入力して<br />成長のグラフを見てみましょう！</p>
-                            </div>
-                        </div>
+                    {/* Compare Button */}
+                    {!compareData && (
+                        <button 
+                            onClick={onShowCompareInput} 
+                            className="w-full py-3 bg-white border-2 border-orange-100 text-orange-600 font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 hover:bg-orange-50 transition btn-press"
+                        >
+                            <IconUsers className="w-5 h-5" />
+                            友達の記録と比較する
+                        </button>
                     )}
+
+                    {/* Main Content Area */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        {/* Tab-like Item Selector (Scrollable) */}
+                        <div className="flex overflow-x-auto p-2 border-b border-slate-100 hide-scrollbar gap-2">
+                            {activeItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setSelectedItemId(item.id)}
+                                    className={`flex-shrink-0 px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${selectedItemId === item.id ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'}`}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="p-4">
+                            {latestRecord ? (
+                                <>
+                                    {/* Latest Value Display */}
+                                    <div className="flex justify-between items-end mb-6">
+                                        <div>
+                                            <div className="text-xs text-slate-400 font-bold mb-1">最新の記録</div>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-3xl font-bold text-slate-800">
+                                                    {latestRecord.values[selectedItemId] != null ? latestRecord.values[selectedItemId] : '-'}
+                                                </span>
+                                                <span className="text-sm font-bold text-slate-500">{currentItem?.unit}</span>
+                                            </div>
+                                        </div>
+                                        {/* Diff with Previous */}
+                                        {previousRecord && previousRecord.values[selectedItemId] != null && latestRecord.values[selectedItemId] != null && (
+                                            <div className="text-right">
+                                                <div className="text-[10px] text-slate-400 font-bold mb-1">前回比</div>
+                                                {(() => {
+                                                    const diff = latestRecord.values[selectedItemId] - previousRecord.values[selectedItemId];
+                                                    // For lower_is_better, negative diff is good
+                                                    const isGood = isLowerBetter ? diff < 0 : diff > 0;
+                                                    const colorClass = diff === 0 ? 'text-slate-400' : (isGood ? 'text-green-500' : 'text-red-400');
+                                                    const sign = diff > 0 ? '+' : '';
+                                                    return (
+                                                        <div className={`text-sm font-bold ${colorClass}`}>
+                                                            {sign}{diff.toFixed(1)} {currentItem?.unit}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Line Chart */}
+                                    <div className="h-64 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                <YAxis 
+                                                    stroke="#94a3b8" 
+                                                    fontSize={10} 
+                                                    tickLine={false} 
+                                                    axisLine={false} 
+                                                    width={30}
+                                                    reversed={isLowerBetter} // Reverse axis for timed events
+                                                    domain={['auto', 'auto']}
+                                                />
+                                                <Tooltip 
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                                                    labelStyle={{ color: '#94a3b8', marginBottom: '0.25rem' }}
+                                                />
+                                                
+                                                {/* My Record Line */}
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="value" 
+                                                    stroke="#16a34a" 
+                                                    strokeWidth={3} 
+                                                    dot={{ fill: '#16a34a', strokeWidth: 2, r: 4, stroke: '#fff' }} 
+                                                    activeDot={{ r: 6 }} 
+                                                    name="自分"
+                                                />
+
+                                                {/* Compare Line (Reference) */}
+                                                {referenceValue != null && (
+                                                    <ReferenceLine y={referenceValue} stroke="#f97316" strokeDasharray="3 3" label={{ position: 'right', value: '相手', fill: '#f97316', fontSize: 10 }} />
+                                                )}
+
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <p className="text-center text-xs text-slate-400 mt-2 font-bold">
+                                        {currentItem?.label} の推移
+                                    </p>
+                                </>
+                            ) : (
+                                <div className="text-center py-10 text-slate-400 text-sm">
+                                    まだ記録がありません。<br/>
+                                    「記録する」から測定結果を入力しましょう！
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
                     {/* Actions */}
                     <div className="grid grid-cols-2 gap-3">
@@ -1494,8 +1413,14 @@
                                                     <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+                                                        <YAxis 
+                                                            stroke="#94a3b8" 
+                                                            fontSize={10} 
+                                                            tickLine={false} 
+                                                            axisLine={false} 
+                                                            reversed={currentItem?.type === 'lower_is_better'}
+                                                        />
+                                                        <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                         <Line connectNulls type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ fill: '#16a34a', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
                                                     </LineChart>
                                                 </ResponsiveContainer>
@@ -1514,16 +1439,6 @@
                             profile={profile} 
                             testItems={testItems} 
                             onClose={() => setDetailModalRecord(null)}
-                            onShare={handleOpenShare}
-                        />
-                    )}
-
-                    {/* Share Modal */}
-                    {showShareModal && shareRecord && (
-                        <ShareModal
-                            record={shareRecord}
-                            profile={profile}
-                            onClose={() => setShowShareModal(false)}
                         />
                     )}
                 </div>
