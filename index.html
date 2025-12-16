@@ -67,6 +67,7 @@
         const IconX = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
         const IconDownload = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
         const IconShare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>;
+        const IconList = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
 
         // --- データ管理 (LocalStorage) ---
         const DB_KEY_PROFILES = 'sports_test_profiles';
@@ -1183,9 +1184,10 @@
         }
 
         function HistoryView({ profile, records, testItems, onBack, onUpdateRecords, allRecords }) {
+            const [historyTab, setHistoryTab] = useState('list'); // 'list' or 'graph'
             const [selectedItemId, setSelectedItemId] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-            const [detailModalRecord, setDetailModalRecord] = useState(null); // Detail Modal state
+            const [detailModalRecord, setDetailModalRecord] = useState(null);
 
             const activeItems = testItems.filter(i => i.active);
 
@@ -1206,6 +1208,7 @@
             };
 
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
             const chartData = sortedRecords.map(r => ({
                 date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }),
                 value: r.values[selectedItemId]
@@ -1214,37 +1217,95 @@
 
             return (
                 <div className="animate-fade-in space-y-6">
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3 mb-2">
                         <h2 className="text-xl font-bold text-slate-800">成長の記録</h2>
                     </div>
-                    {records.length === 0 ? <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-100">まだ記録がありません</div> : (
+
+                    {/* Tab Switcher */}
+                    <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100 mb-4">
+                        <button 
+                            onClick={() => setHistoryTab('list')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'list' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            <IconCalendar className="w-4 h-4" /> 日付一覧
+                        </button>
+                        <button 
+                            onClick={() => setHistoryTab('graph')}
+                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'graph' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            <IconTrendingUp className="w-4 h-4" /> 推移グラフ
+                        </button>
+                    </div>
+
+                    {records.length === 0 ? (
+                        <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-100">まだ記録がありません</div>
+                    ) : (
                         <>
-                            <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto whitespace-nowrap hide-scrollbar flex gap-2">
-                                {activeItems.map(item => <button key={item.id} onClick={() => setSelectedItemId(item.id)} className={`inline-block px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${selectedItemId === item.id ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'}`}>{item.label}</button>)}
-                            </div>
-                            
-                            <div className="space-y-3">
-                                {sortedRecords.length > 0 && <div className="text-xs font-bold text-slate-400 ml-2">履歴 ({sortedRecords.length}件) - タップで詳細</div>}
-                                {[...sortedRecords].reverse().map(record => (
-                                    <div key={record.id} onClick={() => setDetailModalRecord(record)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group cursor-pointer hover:bg-slate-50 transition">
-                                        <div className="flex items-center gap-3">
-                                            <div className="bg-green-50 p-2 rounded-lg text-green-600"><IconCalendar className="w-5 h-5" /></div>
-                                            <div>
-                                                <div className="font-bold text-slate-800 text-sm">{new Date(record.date).toLocaleDateString('ja-JP')}</div>
-                                                <div className="text-xs text-slate-400">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                            {/* LIST MODE */}
+                            {historyTab === 'list' && (
+                                <div className="space-y-3">
+                                    {[...sortedRecords].reverse().map(record => {
+                                        // Pick top 3 recorded items for preview
+                                        const recordedItems = activeItems.filter(item => record.values[item.id] != null);
+                                        const previewText = recordedItems.slice(0, 2).map(i => `${i.label}:${record.values[i.id]}`).join(', ');
+                                        const moreCount = Math.max(0, recordedItems.length - 2);
+
+                                        return (
+                                            <div key={record.id} onClick={() => setDetailModalRecord(record)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group cursor-pointer hover:bg-slate-50 transition relative overflow-hidden">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="bg-green-50 p-2.5 rounded-lg text-green-600 shrink-0 mt-1">
+                                                        <IconCalendar className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="font-bold text-slate-800 text-base">{new Date(record.date).toLocaleDateString('ja-JP')}</div>
+                                                        <div className="text-xs text-slate-400 mb-1">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
+                                                        <div className="text-xs text-slate-500 line-clamp-1">
+                                                            {recordedItems.length > 0 ? (
+                                                                <>
+                                                                    <span className="font-medium text-slate-600">記録: {recordedItems.length}種目</span>
+                                                                    {/* ( {previewText}{moreCount > 0 ? ` ...他${moreCount}件` : ''} ) */}
+                                                                </>
+                                                            ) : '記録なし'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <IconChevronRight className="w-5 h-5 text-slate-300" />
+                                                    <button onClick={(e) => handleDelete(record.id, e)} className={`p-2 rounded-full transition ${deleteConfirmId === record.id ? 'bg-red-500 text-white w-16 text-xs font-bold' : 'text-slate-200 hover:text-red-500 hover:bg-red-50'}`}>
+                                                        {deleteConfirmId === record.id ? '削除' : <IconTrash className="w-5 h-5" />}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                {record.values[selectedItemId] != null ? <><span className="text-xl font-bold text-slate-800">{record.values[selectedItemId]}</span><span className="text-xs text-slate-400 font-bold ml-1">{currentItem?.unit}</span></> : <span className="text-sm text-slate-300 font-bold">未実施</span>}
-                                            </div>
-                                            <button onClick={(e) => handleDelete(record.id, e)} className={`p-2 rounded-full transition ${deleteConfirmId === record.id ? 'bg-red-500 text-white w-16 text-xs font-bold' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'}`}>
-                                                {deleteConfirmId === record.id ? '削除' : <IconTrash className="w-5 h-5" />}
-                                            </button>
-                                        </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* GRAPH MODE */}
+                            {historyTab === 'graph' && (
+                                <div className="animate-fade-in">
+                                    <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto whitespace-nowrap hide-scrollbar flex gap-2 mb-4">
+                                        {activeItems.map(item => <button key={item.id} onClick={() => setSelectedItemId(item.id)} className={`inline-block px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${selectedItemId === item.id ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'}`}>{item.label}</button>)}
                                     </div>
-                                ))}
-                            </div>
+
+                                    {currentItem && (
+                                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                                            <h3 className="text-sm text-slate-500 mb-4 font-bold flex items-center gap-2"><IconTrendingUp className="text-green-600 w-4 h-4" /> {currentItem.label} ({currentItem.unit})</h3>
+                                            <div className="h-64 w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                        <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                        <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                        <Line connectNulls type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ fill: '#16a34a', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </>
                     )}
                     
