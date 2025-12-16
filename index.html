@@ -32,10 +32,6 @@
         .btn-press:active { transform: scale(0.98); }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 0.2s ease-out; }
-        .help-section { margin-bottom: 1.5rem; }
-        .help-title { font-weight: bold; color: #15803d; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-        .help-text { font-size: 0.875rem; color: #475569; line-height: 1.6; }
-        .help-badge { background-color: #dcfce7; color: #166534; font-size: 0.75rem; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-weight: bold; margin-right: 0.25rem; }
     </style>
 </head>
 <body>
@@ -75,6 +71,7 @@
         const IconCopy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
         const IconLink = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>;
         const IconClipboard = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>;
+        const IconEdit = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
 
         // --- データ管理 (LocalStorage) ---
         const DB_KEY_PROFILES = 'sports_test_profiles';
@@ -112,7 +109,6 @@
             parent: '保護者'
         };
 
-        // min: 0点相当, max: 100点相当の目安 (全年齢共通の固定基準)
         const DEFAULT_ITEMS = [
             { id: 'courtSprint', label: 'バスケットコート走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 1, min: 15, max: 4 },
             { id: 'courtShuttle', label: 'バスケットコートシャトル走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 2, min: 20, max: 8 },
@@ -181,8 +177,27 @@
             return 10;
         };
 
-        // スコア計算 (0-100に正規化)
-        const calculateScore = (val, item) => {
+        const getTargetValue = (itemId, age, gender) => {
+            const effectiveAge = Math.min(18, Math.max(6, age));
+            const isMale = gender === 'male';
+            const growthFactor = effectiveAge - 6;
+
+            switch (itemId) {
+                case 'courtSprint': return Math.max(4.0, 10.0 - (growthFactor * 0.4));
+                case 'courtShuttle': return Math.max(8.0, 16.0 - (growthFactor * 0.5));
+                case 'sideSteps': return 25 + (growthFactor * (isMale ? 3.5 : 3.0));
+                case 'sitUps': return 12 + (growthFactor * 2.0);
+                case 'trunkExtension': return 30 + (growthFactor * 2.0);
+                case 'verticalJump': return 25 + (growthFactor * (isMale ? 3.5 : 2.5));
+                case 'standingLongJump': return 115 + (growthFactor * (isMale ? 12 : 10));
+                case 'runningLongJump': return 200 + (growthFactor * 15);
+                case 'ballThrow': return 8 + (growthFactor * (isMale ? 3.0 : 2.0));
+                case 'origamiTotal': return 10;
+                default: return 100;
+            }
+        };
+
+        const calculateScore = (val, item, age, gender) => {
             if (val === null || val === undefined) return 0;
             
             let score = 0;
@@ -190,21 +205,17 @@
             const max = item.max ?? 100;
             const range = max - min;
             
-            // 0除算防止
             if (range === 0) return 0;
 
             if (item.type === 'lower_is_better') {
-                // 低い方が良い (タイムなど)
                 const rangeRev = min - max;
                 const diff = min - val;
                 score = (diff / rangeRev) * 100;
             } else {
-                // 高い方が良い
                 const diff = val - min;
                 score = (diff / range) * 100;
             }
 
-            // クリップ
             return Math.min(100, Math.max(0, score));
         };
 
@@ -293,50 +304,97 @@
                             <IconX className="w-5 h-5 text-slate-500" />
                         </button>
                     </div>
-                    <div className="p-6 space-y-8 text-slate-600">
+                    <div className="p-6 space-y-8 text-slate-600 text-sm leading-relaxed">
+                        
                         <section>
-                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-                                メンバーを登録する
+                                メンバーを登録・管理する
                             </h4>
-                            <p className="text-sm leading-relaxed">
-                                右上の <IconUserPlus className="inline w-4 h-4 text-green-600 mx-1" /> ボタンから、参加する人（お子様や保護者）を登録しましょう。生年月日を入れると、年齢や学年が自動計算されます。
+                            <p className="mb-2">
+                                まずは右上の <IconUserPlus className="inline w-4 h-4 text-green-600 mx-1" /> ボタンから、参加する人（お子様や保護者）を登録しましょう。
                             </p>
+                            <ul className="list-disc list-inside bg-slate-50 p-3 rounded-lg space-y-1 text-xs">
+                                <li><strong>生年月日:</strong> 入力すると年齢・学年が自動計算されます。</li>
+                                <li><strong>切替:</strong> 登録後は右上のメンバー名またはアイコンをタップして、表示する人を切り替えられます。</li>
+                                <li><strong>削除:</strong> メンバーリスト画面でゴミ箱アイコンを2回押すと削除できます。</li>
+                            </ul>
                         </section>
 
                         <section>
-                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
                                 記録を入力する
                             </h4>
-                            <p className="text-sm leading-relaxed mb-2">
-                                下のメニューの「記録する」ボタンを押して記録を入力します。
+                            <p className="mb-2">
+                                下のメニューの「記録する」ボタン、またはホーム画面のアクションボタンから入力します。
                             </p>
-                            <ul className="list-disc list-inside text-xs bg-slate-50 p-3 rounded-lg space-y-1">
-                                <li><strong>ひとりで記録:</strong> 現在選んでいるメンバーの記録をつけます。</li>
-                                <li><strong>みんなで記録:</strong> 家族など複数人の記録を、画面を切り替えずにまとめて入力できます。</li>
+                            <ul className="list-disc list-inside bg-slate-50 p-3 rounded-lg space-y-1 text-xs">
+                                <li><strong>ひとりで記録:</strong> 現在選んでいるメンバー1人分の記録をつけます。</li>
+                                <li><strong>みんなで記録:</strong> 家族や友達など、複数人の記録を画面を切り替えずに連続して入力できます。</li>
+                                <li><strong>注意点:</strong> 数字は必ず半角（例: 7.5）で入力してください。</li>
                             </ul>
                         </section>
+
                         <section>
-                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-                                成長を確認・比較する
+                                成長を確認する
                             </h4>
-                            <p className="text-sm leading-relaxed">
-                                ホーム画面では、<strong>能力バランス（レーダー）</strong>と<strong>成長の記録（グラフ）</strong>をタブで切り替えて確認できます。<br/>
-                                「友達の記録と比較する」ボタンから、友達から送られた記録テキストを貼り付けると、グラフを重ねて比較できます。
+                            <p>
+                                ホーム画面には2種類のグラフがあります。タブで切り替えて確認しましょう。
                             </p>
+                            <ul className="list-disc list-inside bg-slate-50 p-3 rounded-lg space-y-1 text-xs mt-2">
+                                <li><strong>能力バランス:</strong> レーダーチャートで得意・不得意を確認できます。前回の記録と比較もされます。</li>
+                                <li><strong>成長の記録:</strong> 折れ線グラフで、過去からの記録の伸びを確認できます。</li>
+                            </ul>
                         </section>
+
                         <section>
-                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
                                 <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
-                                記録を保存・共有する
+                                履歴を見る・修正する
                             </h4>
-                            <p className="text-sm leading-relaxed">
-                                履歴画面で過去の記録をタップすると詳細が見れます。<br/>
-                                <strong>「画像保存」</strong>で記録証として保存したり、<strong>「テキストコピー」</strong>でLINEなどに貼り付けて友達に送ることができます。
+                            <p>
+                                下のメニューの「履歴」から過去の記録一覧が見れます。<br/>
+                                リストをタップすると詳細画面が開き、以下の操作ができます。
+                            </p>
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div className="bg-slate-50 p-2 rounded text-center text-xs">
+                                    <strong><IconEdit className="inline w-3 h-3"/> 編集</strong><br/>数値を修正し、上書き保存します。
+                                </div>
+                                <div className="bg-slate-50 p-2 rounded text-center text-xs">
+                                    <strong><IconShare className="inline w-3 h-3"/> 保存・共有</strong><br/>画像を保存したり、テキストをコピーします。
+                                </div>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
+                                <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">5</span>
+                                友達と比較する
+                            </h4>
+                            <p className="text-xs mb-2">
+                                友達の記録とグラフを重ねて比較できます。
+                            </p>
+                            <ol className="list-decimal list-inside bg-orange-50 p-3 rounded-lg space-y-2 text-xs border border-orange-100 text-orange-800">
+                                <li><strong>送る側:</strong> 履歴詳細で「テキストコピー」し、LINE等で送ります。</li>
+                                <li><strong>受け取る側:</strong> ホーム画面の「友達の記録と比較する」ボタンを押し、送られてきたテキストを貼り付けます。</li>
+                                <li>ホーム画面が<strong>比較モード</strong>になり、グラフが重なって表示されます。</li>
+                            </ol>
+                        </section>
+                        
+                        <section>
+                            <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2 text-base">
+                                <span className="bg-green-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">6</span>
+                                種目を設定する
+                            </h4>
+                            <p>
+                                右上の <IconSettings className="inline w-4 h-4 text-slate-400" /> ボタンから設定画面へ。
+                                新しい種目の追加や、不要な種目の非表示（目のアイコン）、評価タイプ（高い方が良い/低い方が良い）の変更が可能です。
                             </p>
                         </section>
+
                     </div>
                     <div className="p-4 border-t border-slate-100 mt-auto">
                         <button onClick={onClose} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg btn-press">
@@ -388,7 +446,7 @@
         };
 
         // --- 詳細＆画像保存モーダル ---
-        const RecordDetailModal = ({ record, profile, testItems, onClose }) => {
+        const RecordDetailModal = ({ record, profile, testItems, onClose, onEdit }) => {
             const modalRef = useRef(null);
             const activeItems = testItems.filter(i => i.active);
 
@@ -408,7 +466,6 @@
                             const fileName = `sports_test_${profile.name}_${new Date(record.date).toISOString().slice(0,10)}.png`;
                             const file = new File([blob], fileName, { type: 'image/png' });
 
-                            // Web Share API (スマホ向け: 写真アプリへの保存やLINE共有など)
                             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                                 try {
                                     await navigator.share({
@@ -418,8 +475,6 @@
                                     });
                                 } catch (shareError) {
                                     if (shareError.name !== 'AbortError') {
-                                        console.error('Share failed:', shareError);
-                                        // 共有失敗時はダウンロードにフォールバック
                                         const link = document.createElement('a');
                                         link.download = fileName;
                                         link.href = canvas.toDataURL();
@@ -427,7 +482,6 @@
                                     }
                                 }
                             } else {
-                                // PCや非対応ブラウザ向け: ダウンロード
                                 const link = document.createElement('a');
                                 link.download = fileName;
                                 link.href = canvas.toDataURL();
@@ -459,13 +513,10 @@
 
                 text += `\n#みんなのスポーツテスト`;
 
-                // Try Clipboard API
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
                         alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
                     }).catch(err => {
-                        console.error('Copy failed', err);
-                        // Fallback to execCommand
                         copyToClipboardFallback(text);
                     });
                 } else {
@@ -476,28 +527,19 @@
             const copyToClipboardFallback = (text) => {
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
-                
-                // Avoid scrolling to bottom
                 textArea.style.top = "0";
                 textArea.style.left = "0";
                 textArea.style.position = "fixed";
-
                 document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
-
                 try {
                     const successful = document.execCommand('copy');
-                    if (successful) {
-                         alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
-                    } else {
-                         alert('コピーに失敗しました。');
-                    }
+                    if (successful) alert('記録をコピーしました！\nLINEなどで友達に送ってください。');
+                    else alert('コピーに失敗しました。');
                 } catch (err) {
-                    console.error('Fallback copy failed', err);
                     alert('コピーに失敗しました。');
                 }
-
                 document.body.removeChild(textArea);
             };
 
@@ -506,26 +548,28 @@
                     <div className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
                             <h3 className="font-bold text-lg text-slate-800">記録詳細</h3>
-                            <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition">
-                                <IconX className="w-5 h-5 text-slate-500" />
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => onEdit(record)} className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition" title="編集">
+                                    <IconEdit className="w-5 h-5" />
+                                </button>
+                                <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition">
+                                    <IconX className="w-5 h-5 text-slate-500" />
+                                </button>
+                            </div>
                         </div>
                         
-                        {/* Capture Area */}
                         <div ref={modalRef} className="p-6 bg-white">
                             <div className="text-center mb-6">
                                 <div className="text-green-600 font-bold tracking-widest text-xs uppercase mb-1">SPORTS TEST RECORD</div>
                                 <h2 className="text-2xl font-bold text-slate-800">{new Date(record.date).toLocaleDateString('ja-JP')}</h2>
                                 <div className="text-sm text-slate-500 mt-1">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
                             </div>
-
                             <div className="flex items-center justify-center gap-3 mb-8">
                                 <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}`}>
                                     {profile.name[0]}
                                 </div>
                                 <div className="text-xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal ml-1">さん</span></div>
                             </div>
-
                             <div className="space-y-3">
                                 {activeItems.map(item => {
                                     const val = record.values[item.id];
@@ -540,10 +584,7 @@
                                     );
                                 })}
                             </div>
-                            
-                            <div className="mt-8 text-center text-[10px] text-slate-300">
-                                みんなのスポーツテスト
-                            </div>
+                            <div className="mt-8 text-center text-[10px] text-slate-300">みんなのスポーツテスト</div>
                         </div>
                         
                         <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto grid grid-cols-2 gap-3">
@@ -567,7 +608,6 @@
                         <p className="font-bold mb-2 text-slate-700">{label}</p>
                         {payload.map((entry, index) => {
                             const dataKey = entry.dataKey;
-                            // A: 今回, B: 前回, C: 相手
                             let rawVal = null;
                             let unit = '';
                             
@@ -605,6 +645,7 @@
             const [showHelp, setShowHelp] = useState(false);
             const [compareData, setCompareData] = useState(null);
             const [showCompareInput, setShowCompareInput] = useState(false);
+            const [editingRecord, setEditingRecord] = useState(null);
 
             // 初期データロード
             useEffect(() => {
@@ -642,6 +683,13 @@
                 setLocalData(DB_KEY_RECORDS, newRecords);
             };
 
+            const handleUpdateRecord = (updatedRecord) => {
+                const newRecords = records.map(r => r.id === updatedRecord.id ? updatedRecord : r);
+                setRecords(newRecords);
+                setLocalData(DB_KEY_RECORDS, newRecords);
+                setView('history');
+            };
+
             const updateTestItems = (newItems) => {
                 setTestItems(newItems);
                 setLocalData(DB_KEY_ITEMS, newItems);
@@ -668,6 +716,11 @@
                 setShowHelp(false);
                 localStorage.setItem(DB_KEY_TUTORIAL_DONE, 'true');
             };
+            
+            const handleEditRecord = (record) => {
+                setEditingRecord(record);
+                setView('entry');
+            };
 
             const currentProfile = profiles.find(p => p.id === selectedProfileId);
 
@@ -689,30 +742,13 @@
 
                             {/* Right Actions */}
                             <div className="flex items-center gap-2">
-                                {/* Help Button (New) */}
-                                <button 
-                                    onClick={() => setShowHelp(true)} 
-                                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition"
-                                    title="使い方"
-                                >
+                                <button onClick={() => setShowHelp(true)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition" title="使い方">
                                     <IconHelp className="w-6 h-6" />
                                 </button>
-
-                                {/* Settings */}
-                                <button 
-                                    onClick={() => setView('settings')} 
-                                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition"
-                                    title="設定"
-                                >
+                                <button onClick={() => setView('settings')} className="p-2 text-slate-400 hover:text-green-600 hover:bg-slate-50 rounded-full transition" title="設定">
                                     <IconSettings className="w-6 h-6" />
                                 </button>
-
-                                {/* Member Switcher / Add */}
-                                <button 
-                                    onClick={() => setView('profiles')} 
-                                    className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition ${view === 'profiles' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`}
-                                    title="メンバー確認・追加"
-                                >
+                                <button onClick={() => setView('profiles')} className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition ${view === 'profiles' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:border-green-300'}`} title="メンバー確認・追加">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white ${currentProfile ? (currentProfile.gender === 'male' ? 'bg-blue-400' : 'bg-pink-400') : 'bg-slate-300'}`}>
                                         {currentProfile ? currentProfile.name[0] : <IconUser className="w-5 h-5" />}
                                     </div>
@@ -753,7 +789,7 @@
                                 profile={currentProfile}
                                 testItems={testItems}
                                 records={records.filter(r => r.profileId === currentProfile.id)}
-                                onRecord={() => setView('entry')}
+                                onRecord={() => { setEditingRecord(null); setView('entry'); }}
                                 onGroupRecord={() => setView('group_entry')}
                                 multiProfiles={profiles.length > 1}
                                 compareData={compareData} 
@@ -765,10 +801,12 @@
                             <RecordEntry
                                 profile={currentProfile}
                                 testItems={testItems}
-                                onBack={() => setView('dashboard')}
-                                onComplete={() => setView('dashboard')}
+                                initialRecord={editingRecord}
+                                onBack={() => setView(editingRecord ? 'history' : 'dashboard')}
+                                onComplete={() => setView(editingRecord ? 'history' : 'dashboard')}
                                 currentRecords={records}
                                 onUpdateRecords={updateRecords}
+                                onUpdateOneRecord={handleUpdateRecord}
                             />
                         )}
                         {view === 'history' && currentProfile && (
@@ -779,6 +817,7 @@
                                 onBack={() => setView('dashboard')}
                                 onUpdateRecords={updateRecords}
                                 allRecords={records}
+                                onEditRecord={handleEditRecord}
                             />
                         )}
                         {view === 'settings' && (
@@ -794,12 +833,12 @@
                     {showHelp && <HelpModal onClose={handleCloseHelp} />}
                     {showCompareInput && <CompareImportModal onClose={() => setShowCompareInput(false)} onImport={setCompareData} />}
 
-                    {/* Bottom Nav (入力画面では隠す) */}
+                    {/* Bottom Nav */}
                     {selectedProfileId && view !== 'profiles' && view !== 'settings' && view !== 'group_entry' && view !== 'entry' && (
                         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg safe-area-pb z-20">
                             <div className="max-w-3xl mx-auto flex justify-around p-2">
                                 <NavButton icon={<IconHome className="w-6 h-6" />} label="ホーム" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
-                                <NavButton icon={<IconPlus className="w-6 h-6 bg-green-600 text-white rounded-full p-0.5" />} label="記録する" active={view === 'entry'} onClick={() => setView('entry')} />
+                                <NavButton icon={<IconPlus className="w-6 h-6 bg-green-600 text-white rounded-full p-0.5" />} label="記録する" active={view === 'entry'} onClick={() => { setEditingRecord(null); setView('entry'); }} />
                                 <NavButton icon={<IconHistory className="w-6 h-6" />} label="履歴" active={view === 'history'} onClick={() => setView('history')} />
                                 <NavButton icon={<IconUsers className="w-6 h-6" />} label="メンバー" active={view === 'profiles'} onClick={() => setView('profiles')} />
                                 <NavButton icon={<IconSettings className="w-6 h-6" />} label="設定" active={view === 'settings'} onClick={() => setView('settings')} />
@@ -867,38 +906,25 @@
                     <div className="bg-white rounded-2xl shadow-sm p-6 animate-fade-in border border-slate-100">
                         <div className="flex items-center gap-2 mb-6">
                              <button onClick={() => setIsCreating(false)} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button>
-                             <h2 className="text-xl font-bold text-slate-800">
-                                アカウントを追加
-                             </h2>
+                             <h2 className="text-xl font-bold text-slate-800">アカウントを追加</h2>
                         </div>
-                        
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">お名前</label>
                                 <input required className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="山田 太郎" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                             </div>
-                            
                             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-bold text-blue-800 mb-1">生年月日</label>
-                                        <input 
-                                            required 
-                                            type="date"
-                                            className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" 
-                                            value={formData.birthdate} 
-                                            onChange={e => setFormData({...formData, birthdate: e.target.value})} 
-                                        />
+                                        <input required type="date" className="w-full p-3 border border-blue-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none transition" value={formData.birthdate} onChange={e => setFormData({...formData, birthdate: e.target.value})} />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-blue-800 mb-1">年齢・学年 (自動計算)</label>
-                                        <div className="w-full p-3 border border-blue-200 rounded-xl bg-white text-blue-900 font-bold min-h-[48px] flex items-center shadow-sm">
-                                            {calculatedInfo.label || <span className="text-slate-300 font-normal">生年月日を選択...</span>}
-                                        </div>
+                                        <div className="w-full p-3 border border-blue-200 rounded-xl bg-white text-blue-900 font-bold min-h-[48px] flex items-center shadow-sm">{calculatedInfo.label || <span className="text-slate-300 font-normal">生年月日を選択...</span>}</div>
                                     </div>
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">性別</label>
@@ -926,19 +952,11 @@
             }
 
             return (
-                <div className="animate-fade-in space-y-6">
-                    {/* Add Button Area */}
-                    <button 
-                        onClick={() => setIsCreating(true)} 
-                        className="w-full bg-white p-4 rounded-2xl shadow-sm border-2 border-dashed border-green-300 text-green-600 font-bold flex items-center justify-center gap-2 hover:bg-green-50 transition btn-press group"
-                    >
-                        <div className="bg-green-100 p-2 rounded-full group-hover:bg-green-200 transition">
-                            <IconUserPlus className="w-6 h-6" />
-                        </div>
+                <div className="space-y-6 animate-fade-in">
+                    <button onClick={() => setIsCreating(true)} className="w-full bg-white p-4 rounded-2xl shadow-sm border-2 border-dashed border-green-300 text-green-600 font-bold flex items-center justify-center gap-2 hover:bg-green-50 transition btn-press group">
+                        <div className="bg-green-100 p-2 rounded-full group-hover:bg-green-200 transition"><IconUserPlus className="w-6 h-6" /></div>
                         <span>新しいメンバーを追加</span>
                     </button>
-
-                    {/* Member List */}
                     <div>
                         <h3 className="text-sm font-bold text-slate-400 mb-3 ml-1">メンバーリスト ({profiles.length})</h3>
                         <div className="grid gap-3">
@@ -946,10 +964,7 @@
                                 <div key={profile.id} className="relative group">
                                     <button onClick={() => onSelect(profile.id)} className="w-full flex items-center p-4 bg-white rounded-xl shadow-sm border border-slate-100 hover:border-green-500 active:bg-green-50 transition-all text-left pr-14">
                                         <div className={`h-12 w-12 rounded-full flex items-center justify-center text-xl font-bold mr-4 shrink-0 ${profile.category === 'member' ? 'bg-blue-100 text-blue-600' : profile.category === 'parent' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>{profile.name[0]}</div>
-                                        <div className="flex-1">
-                                            <div className="font-bold text-lg text-slate-800">{profile.name}</div>
-                                            <div className="text-xs text-slate-500 font-bold">{CATEGORIES[profile.category]} • {profile.age}</div>
-                                        </div>
+                                        <div className="flex-1"><div className="font-bold text-lg text-slate-800">{profile.name}</div><div className="text-xs text-slate-500 font-bold">{CATEGORIES[profile.category]} • {profile.age}</div></div>
                                         <IconChevronRight className="text-slate-300" />
                                     </button>
                                     <button onClick={(e) => handleDelete(profile.id, e)} className={`absolute right-14 top-1/2 -translate-y-1/2 p-3 rounded-full transition z-10 ${deleteConfirmId === profile.id ? 'bg-red-500 text-white w-auto px-4 text-xs font-bold' : 'text-slate-300 hover:text-red-500'}`}>
@@ -965,13 +980,11 @@
 
         function Dashboard({ profile, records, testItems, onRecord, onGroupRecord, multiProfiles, compareData, onClearCompare, onShowCompareInput }) {
             const [graphItemId, setGraphItemId] = useState('');
-            const [activeTab, setActiveTab] = useState('radar'); // radar or history
+            const [activeTab, setActiveTab] = useState('radar');
             const activeItems = testItems.filter(i => i.active);
             const age = useMemo(() => parseAge(profile.age), [profile.age]);
-            // Compare Data parsing
             const compareAge = useMemo(() => compareData ? parseAge(compareData.age) : 10, [compareData]);
 
-            // Sort ascending for graph
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
             const latestRecord = sortedRecords.length > 0 ? sortedRecords[sortedRecords.length - 1] : null;
             const previousRecord = sortedRecords.length > 1 ? sortedRecords[sortedRecords.length - 2] : null;
@@ -982,56 +995,14 @@
 
             const radarData = useMemo(() => {
                 if (!latestRecord) return [];
-                const groupScores = {};
-                GROUPS.forEach(g => { groupScores[g] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 }; });
-
-                activeItems.forEach(item => {
-                    const cVal = latestRecord.values[item.id];
-                    const pVal = previousRecord?.values[item.id];
-                    const cmpVal = compareData?.values[item.id];
-
-                    const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
-                    const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
-                    const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
-
-                    return {
-                        subject: item.label, // 項目名を種目名にする
-                        id: item.id,
-                        unit: item.unit,
-                        // グラフ描画用スコア
-                        A: cVal != null ? cScore : 0, 
-                        B: pVal != null ? pScore : 0,
-                        C: (compareData && cmpVal != null) ? cmpScore : 0,
-                        // ツールチップ表示用の生データ
-                        valA: cVal,
-                        valB: pVal,
-                        valC: cmpVal,
-                        fullMark: 100
-                    };
-                });
-                
-                // Use activeItems to generate radar data directly instead of grouping
                 return activeItems.map(item => {
                     const cVal = latestRecord.values[item.id];
                     const pVal = previousRecord?.values[item.id];
                     const cmpVal = compareData?.values[item.id];
-
                     const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
                     const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
                     const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
-                    
-                    return {
-                        subject: item.label,
-                        id: item.id,
-                        unit: item.unit,
-                        A: cVal != null ? cScore : 0, 
-                        B: pVal != null ? pScore : 0,
-                        C: (compareData && cmpVal != null) ? cmpScore : 0,
-                        valA: cVal,
-                        valB: pVal,
-                        valC: cmpVal,
-                        fullMark: 100
-                    };
+                    return { subject: item.label, id: item.id, unit: item.unit, A: cVal != null ? cScore : 0, B: pVal != null ? pScore : 0, C: (compareData && cmpVal != null) ? cmpScore : 0, valA: cVal, valB: pVal, valC: cmpVal, fullMark: 100 };
                 });
             }, [latestRecord, previousRecord, compareData, activeItems, age, profile.gender]);
 
@@ -1044,74 +1015,28 @@
 
             return (
                 <div className="space-y-6 animate-fade-in">
-                    {/* Compare Alert */}
                     {compareData && (
                         <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl flex items-center justify-between shadow-sm">
-                            <div className="flex items-center gap-2">
-                                <IconUsers className="text-orange-500 w-5 h-5" />
-                                <div>
-                                    <div className="font-bold text-orange-800 text-sm">比較モード中</div>
-                                    <div className="text-xs text-orange-600">VS {compareData.name}さん</div>
-                                </div>
-                            </div>
+                            <div className="flex items-center gap-2"><IconUsers className="text-orange-500 w-5 h-5" /><div><div className="font-bold text-orange-800 text-sm">比較モード中</div><div className="text-xs text-orange-600">VS {compareData.name}さん</div></div></div>
                             <button onClick={onClearCompare} className="text-xs bg-white border border-orange-200 text-orange-600 px-3 py-1.5 rounded-lg font-bold">終了</button>
                         </div>
                     )}
-
-                    {/* User Profile Card */}
                     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center justify-between">
-                        <div>
-                            <div className="text-xs text-slate-400 font-bold mb-1">{CATEGORIES[profile.category]}</div>
-                            <h2 className="text-2xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal text-slate-500 ml-2">さん</span></h2>
-                        </div>
-                        
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>
-                            {profile.name[0]}
-                        </div>
+                        <div><div className="text-xs text-slate-400 font-bold mb-1">{CATEGORIES[profile.category]}</div><h2 className="text-2xl font-bold text-slate-800">{profile.name}<span className="text-sm font-normal text-slate-500 ml-2">さん</span></h2></div>
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center text-2xl font-bold ${profile.gender === 'male' ? 'bg-blue-50 text-blue-500' : 'bg-pink-50 text-pink-500'}`}>{profile.name[0]}</div>
                     </div>
-
-                    {/* Compare Button */}
-                    {!compareData && (
-                        <button 
-                            onClick={onShowCompareInput} 
-                            className="w-full py-3 bg-white border-2 border-orange-100 text-orange-600 font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 hover:bg-orange-50 transition btn-press"
-                        >
-                            <IconUsers className="w-5 h-5" />
-                            友達の記録と比較する
-                        </button>
-                    )}
-
-                    {/* Main Content Area */}
+                    {!compareData && <button onClick={onShowCompareInput} className="w-full py-3 bg-white border-2 border-orange-100 text-orange-600 font-bold rounded-xl shadow-sm flex items-center justify-center gap-2 hover:bg-orange-50 transition btn-press"><IconUsers className="w-5 h-5" />友達の記録と比較する</button>}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                        {/* Tabs */}
                         <div className="flex border-b border-slate-100">
-                            <button onClick={() => setActiveTab('radar')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'radar' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>
-                                能力バランス
-                            </button>
-                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'history' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>
-                                成長の記録
-                            </button>
+                            <button onClick={() => setActiveTab('radar')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'radar' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>能力バランス</button>
+                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-3 text-sm font-bold transition ${activeTab === 'history' ? 'text-green-600 border-b-2 border-green-600 bg-green-50' : 'text-slate-400'}`}>成長の記録</button>
                         </div>
-
                         <div className="p-4">
                             {activeTab === 'radar' && (
                                 <div className="animate-fade-in">
                                     <div className="flex justify-end mb-2 flex-wrap gap-2">
-                                        {compareData ? (
-                                            <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100">
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>自分</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-400 rounded-full"></div>{compareData.name}</div>
-                                            </div>
-                                        ) : (
-                                            latestRecord && (
-                                                <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-slate-50 px-2 py-1 rounded-lg">
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>今回</div>
-                                                    <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 rounded-full"></div>前回</div>
-                                                </div>
-                                            )
-                                        )}
+                                        {compareData ? <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-orange-50 px-2 py-1 rounded-lg border border-orange-100"><div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>自分</div><div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-400 rounded-full"></div>{compareData.name}</div></div> : latestRecord && <div className="text-[10px] flex items-center gap-3 text-slate-500 bg-slate-50 px-2 py-1 rounded-lg"><div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full"></div>今回</div><div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 rounded-full"></div>前回</div></div>}
                                     </div>
-                                    
                                     {latestRecord ? (
                                         <>
                                             <div className="h-[300px] w-full -ml-2">
@@ -1120,53 +1045,33 @@
                                                         <PolarGrid stroke="#e2e8f0" />
                                                         <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
                                                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                                                        
                                                         {!compareData && <Radar name="前回" dataKey="B" stroke="#cbd5e1" strokeWidth={2} fill="#cbd5e1" fillOpacity={0.2} />}
-                                                        
                                                         {compareData && <Radar name="相手" dataKey="C" stroke="#fb923c" strokeWidth={3} fill="#fdba74" fillOpacity={0.4} />}
-
                                                         <Radar name="今回" dataKey="A" stroke="#16a34a" strokeWidth={3} fill="#22c55e" fillOpacity={0.4} />
                                                         <Tooltip content={<CustomRadarTooltip />} />
                                                     </RadarChart>
                                                 </ResponsiveContainer>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2 mt-2">
-                                                {activeItems.slice(0, 4).map(item => (
-                                                    <StatBox key={item.id} label={item.label} value={latestRecord.values[item.id] != null ? `${latestRecord.values[item.id]}${item.unit}` : '-'} />
-                                                ))}
+                                                {activeItems.slice(0, 4).map(item => <StatBox key={item.id} label={item.label} value={latestRecord.values[item.id] != null ? `${latestRecord.values[item.id]}${item.unit}` : '-'} />)}
                                             </div>
                                         </>
-                                    ) : (
-                                        <div className="text-center py-10 text-slate-400 text-sm">
-                                            まだ記録がありません。<br/>
-                                            「記録する」から測定結果を入力しましょう！
-                                        </div>
-                                    )}
+                                    ) : <div className="text-center py-10 text-slate-400 text-sm">まだ記録がありません。<br/>「記録する」から測定結果を入力しましょう！</div>}
                                 </div>
                             )}
-
                             {activeTab === 'history' && (
                                 <div className="animate-fade-in">
                                     {latestRecord ? (
                                         <>
                                             <div className="flex justify-end mb-4">
-                                                <select className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 outline-none font-bold text-slate-700" value={graphItemId} onChange={(e) => setGraphItemId(e.target.value)}>
-                                                    {activeItems.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-                                                </select>
+                                                <select className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2 outline-none font-bold text-slate-700" value={graphItemId} onChange={(e) => setGraphItemId(e.target.value)}>{activeItems.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
                                             </div>
                                             <div className="h-64 w-full">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <LineChart data={historyChartData} margin={{ top: 10, right: 20, bottom: 5, left: 0 }}>
                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <YAxis 
-                                                            stroke="#94a3b8" 
-                                                            fontSize={10} 
-                                                            tickLine={false} 
-                                                            axisLine={false} 
-                                                            width={30}
-                                                            reversed={currentGraphItem?.type === 'lower_is_better'}
-                                                        />
+                                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} width={30} reversed={currentGraphItem?.type === 'lower_is_better'} />
                                                         <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                         <Line connectNulls type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
                                                     </LineChart>
@@ -1174,44 +1079,21 @@
                                             </div>
                                             <p className="text-center text-xs text-slate-400 mt-2 font-bold">{currentGraphItem?.label} ({currentGraphItem?.unit})</p>
                                         </>
-                                    ) : (
-                                        <div className="text-center py-10 text-slate-400 text-sm">
-                                            まだ記録がありません。
-                                        </div>
-                                    )}
+                                    ) : <div className="text-center py-10 text-slate-400 text-sm">まだ記録がありません。</div>}
                                 </div>
                             )}
                         </div>
                     </div>
-
-                    {/* Actions */}
                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={onRecord} className="bg-green-600 text-white py-4 px-4 rounded-xl font-bold shadow-lg shadow-green-100 flex flex-col items-center justify-center gap-1 btn-press transition">
-                            <IconPlus className="w-6 h-6 mb-1" />
-                            <span>ひとりで記録</span>
-                        </button>
-                        {multiProfiles ? (
-                            <button onClick={onGroupRecord} className="bg-white text-green-700 border border-green-100 py-4 px-4 rounded-xl font-bold shadow-sm flex flex-col items-center justify-center gap-1 btn-press transition">
-                                <IconUsers className="w-6 h-6 mb-1" />
-                                <span>みんなで記録</span>
-                            </button>
-                        ) : (
-                            <div className="bg-slate-100 text-slate-400 py-4 px-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-slate-200">
-                                <IconUsers className="w-6 h-6 mb-1" />
-                                <span className="text-xs">メンバー追加で利用可</span>
-                            </div>
-                        )}
+                        <button onClick={onRecord} className="bg-green-600 text-white py-4 px-4 rounded-xl font-bold shadow-lg shadow-green-100 flex flex-col items-center justify-center gap-1 btn-press transition"><IconPlus className="w-6 h-6 mb-1" /><span>ひとりで記録</span></button>
+                        {multiProfiles ? <button onClick={onGroupRecord} className="bg-white text-green-700 border border-green-100 py-4 px-4 rounded-xl font-bold shadow-sm flex flex-col items-center justify-center gap-1 btn-press transition"><IconUsers className="w-6 h-6 mb-1" /><span>みんなで記録</span></button> : <div className="bg-slate-100 text-slate-400 py-4 px-4 rounded-xl font-bold flex flex-col items-center justify-center gap-1 border border-slate-200"><IconUsers className="w-6 h-6 mb-1" /><span className="text-xs">メンバー追加で利用可</span></div>}
                     </div>
                 </div>
             );
         }
 
-        function RecordEntry({ profile, testItems, onBack, onComplete, currentRecords, onUpdateRecords }) {
-            // Load draft data on mount
-            const [values, setValues] = useState(() => {
-                const draft = getLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
-                return draft;
-            });
+        function RecordEntry({ profile, testItems, onBack, onComplete, currentRecords, onUpdateRecords, onUpdateOneRecord, initialRecord }) {
+            const [values, setValues] = useState({});
             const activeItems = testItems.filter(i => i.active);
             const groupedItems = activeItems.reduce((acc, item) => {
                 if (!acc[item.group]) acc[item.group] = [];
@@ -1219,10 +1101,20 @@
                 return acc;
             }, {});
 
-            // Save draft whenever values change
             useEffect(() => {
-                setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, values);
-            }, [values, profile.id]);
+                if (initialRecord) {
+                    setValues(initialRecord.values || {});
+                } else {
+                    const draft = getLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
+                    setValues(draft);
+                }
+            }, [profile.id, initialRecord]);
+
+            useEffect(() => {
+                if (!initialRecord) {
+                    setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, values);
+                }
+            }, [values, profile.id, initialRecord]);
 
             const handleSubmit = (e) => {
                 e.preventDefault();
@@ -1232,17 +1124,19 @@
                     if (raw !== '' && raw !== undefined) cleanValues[item.id] = Number(raw);
                 });
 
-                const newRecord = {
-                    id: 'r_' + Date.now(),
-                    profileId: profile.id,
-                    date: Date.now(),
-                    values: cleanValues
-                };
-                onUpdateRecords([...currentRecords, newRecord]);
-                
-                // Clear draft after success
-                setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
-                
+                if (initialRecord) {
+                    const updated = { ...initialRecord, values: cleanValues };
+                    onUpdateOneRecord(updated);
+                } else {
+                    const newRecord = {
+                        id: 'r_' + Date.now(),
+                        profileId: profile.id,
+                        date: Date.now(),
+                        values: cleanValues
+                    };
+                    onUpdateRecords([...currentRecords, newRecord]);
+                    setLocalData(`${DB_KEY_DRAFT_PREFIX}${profile.id}`, {});
+                }
                 onComplete();
             };
 
@@ -1250,7 +1144,7 @@
                 <div className="animate-slide-up pb-32">
                     <div className="flex items-center gap-3 mb-6">
                         <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button>
-                        <h2 className="text-xl font-bold">記録を入力</h2>
+                        <h2 className="text-xl font-bold">{initialRecord ? '記録を編集' : '記録を入力'}</h2>
                     </div>
                     <div className="bg-red-50 text-red-700 p-4 rounded-xl text-sm mb-6 flex items-start gap-3 border border-red-100 shadow-sm">
                         <IconAlert className="w-5 h-5 shrink-0 mt-0.5" />
@@ -1261,10 +1155,7 @@
                             {Object.keys(groupedItems).map((groupName, idx) => (
                                 <div key={groupName}>
                                     {idx > 0 && <div className="border-t border-slate-100 my-6" />}
-                                    <h3 className="text-sm font-bold text-green-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <div className="w-1 h-4 bg-green-500 rounded-full"></div>
-                                        {groupName}
-                                    </h3>
+                                    <h3 className="text-sm font-bold text-green-600 uppercase tracking-wider mb-4 flex items-center gap-2"><div className="w-1 h-4 bg-green-500 rounded-full"></div>{groupName}</h3>
                                     <div className="space-y-4">
                                         {groupedItems[groupName].map(item => (
                                             <InputGroup key={item.id} label={item.label} suffix={item.unit} placeholder="-" value={values[item.id] || ''} onChange={(v) => setValues(prev => ({ ...prev, [item.id]: v }))} />
@@ -1288,16 +1179,10 @@
         function GroupRecordView({ profiles, testItems, onBack, onComplete, currentRecords, onUpdateRecords }) {
             const [step, setStep] = useState('select_members');
             const [selectedProfileIds, setSelectedProfileIds] = useState([]);
-            // Manage active profile tab for input step
             const [activeTabProfileId, setActiveTabProfileId] = useState(null);
-            
-            // Load/Save Draft
             const [values, setValues] = useState(() => getLocalData(DB_KEY_DRAFT_GROUP, {}));
             
-            useEffect(() => {
-                setLocalData(DB_KEY_DRAFT_GROUP, values);
-            }, [values]);
-
+            useEffect(() => { setLocalData(DB_KEY_DRAFT_GROUP, values); }, [values]);
             const activeItems = testItems.filter(i => i.active);
 
             const handleSave = () => {
@@ -1311,51 +1196,30 @@
                         if (val !== '' && val !== undefined) cleanValues[itemId] = Number(val);
                     });
                     if (Object.keys(cleanValues).length > 0) {
-                        newRecords.push({
-                            id: 'r_' + pid + '_' + now,
-                            profileId: pid,
-                            date: now,
-                            values: cleanValues
-                        });
+                        newRecords.push({ id: 'r_' + pid + '_' + now, profileId: pid, date: now, values: cleanValues });
                     }
                 });
                 onUpdateRecords([...currentRecords, ...newRecords]);
-                
-                // Clear Draft
                 setLocalData(DB_KEY_DRAFT_GROUP, {});
-                
                 if (selectedProfileIds.length > 0) onComplete(selectedProfileIds[0]);
                 else onBack();
             };
 
             const handleInputChange = (profileId, itemId, val) => {
-                setValues(prev => ({
-                    ...prev,
-                    [profileId]: {
-                        ...(prev[profileId] || {}),
-                        [itemId]: val
-                    }
-                }));
+                setValues(prev => ({ ...prev, [profileId]: { ...(prev[profileId] || {}), [itemId]: val } }));
             };
 
             const handleNextStep = () => {
                 if (selectedProfileIds.length === 0) return;
                 setStep('input');
-                // Set first selected profile as active tab
                 setActiveTabProfileId(selectedProfileIds[0]);
             };
 
             if (step === 'select_members') {
                 return (
                     <div className="animate-fade-in pb-10">
-                        <div className="flex items-center gap-3 mb-6">
-                            <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button>
-                            <h2 className="text-xl font-bold">参加者を選択</h2>
-                        </div>
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center mb-6">
-                            <p className="text-slate-800 font-bold mb-1">誰の記録を入力しますか？</p>
-                            <p className="text-xs text-slate-400">複数人選ぶと、まとめて入力できます</p>
-                        </div>
+                        <div className="flex items-center gap-3 mb-6"><button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button><h2 className="text-xl font-bold">参加者を選択</h2></div>
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center mb-6"><p className="text-slate-800 font-bold mb-1">誰の記録を入力しますか？</p><p className="text-xs text-slate-400">複数人選ぶと、まとめて入力できます</p></div>
                         <div className="grid gap-3 mb-24">
                             {profiles.map(profile => {
                                 const isSelected = selectedProfileIds.includes(profile.id);
@@ -1368,105 +1232,59 @@
                                 );
                             })}
                         </div>
-                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 safe-area-pb z-30">
-                            <div className="max-w-3xl mx-auto">
-                                <button onClick={handleNextStep} disabled={selectedProfileIds.length === 0} className={`w-full py-4 font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 ${selectedProfileIds.length > 0 ? 'bg-green-600 text-white btn-press shadow-green-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
-                                    次へ進む ({selectedProfileIds.length}人) <IconChevronRight className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
+                        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 safe-area-pb z-30"><div className="max-w-3xl mx-auto"><button onClick={handleNextStep} disabled={selectedProfileIds.length === 0} className={`w-full py-4 font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 ${selectedProfileIds.length > 0 ? 'bg-green-600 text-white btn-press shadow-green-100' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>次へ進む ({selectedProfileIds.length}人) <IconChevronRight className="w-5 h-5" /></button></div></div>
                     </div>
                 );
             }
 
-            // Input Step (Tabbed)
             return (
                 <div className="animate-slide-up pb-32">
-                    <div className="flex items-center gap-3 mb-6 sticky top-16 bg-slate-50 py-2 z-10">
-                        <button onClick={() => setStep('select_members')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button>
-                        <h2 className="text-xl font-bold">まとめて入力</h2>
-                    </div>
-
-                    <div className="bg-red-50 text-red-700 p-4 rounded-xl text-sm mb-6 flex items-start gap-3 border border-red-100 shadow-sm">
-                        <IconAlert className="w-5 h-5 shrink-0 mt-0.5" />
-                        <p className="font-bold">数字はすべて<br/>「半角 (例: 7.5)」で入力してください</p>
-                    </div>
-
-                    {/* Profile Tabs */}
+                    <div className="flex items-center gap-3 mb-6 sticky top-16 bg-slate-50 py-2 z-10"><button onClick={() => setStep('select_members')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button><h2 className="text-xl font-bold">まとめて入力</h2></div>
+                    <div className="bg-red-50 text-red-700 p-4 rounded-xl text-sm mb-6 flex items-start gap-3 border border-red-100 shadow-sm"><IconAlert className="w-5 h-5 shrink-0 mt-0.5" /><p className="font-bold">数字はすべて<br/>「半角 (例: 7.5)」で入力してください</p></div>
                     <div className="flex gap-2 overflow-x-auto pb-4 mb-2 hide-scrollbar">
                         {selectedProfileIds.map(pid => {
                             const profile = profiles.find(p => p.id === pid);
                             const isActive = activeTabProfileId === pid;
                             return (
-                                <button 
-                                    key={pid} 
-                                    onClick={() => setActiveTabProfileId(pid)}
-                                    className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all ${isActive ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500'}`}
-                                >
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? 'bg-white text-green-600' : 'bg-slate-200 text-slate-400'}`}>
-                                        {profile.name[0]}
-                                    </div>
+                                <button key={pid} onClick={() => setActiveTabProfileId(pid)} className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all ${isActive ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-slate-200 text-slate-500'}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? 'bg-white text-green-600' : 'bg-slate-200 text-slate-400'}`}>{profile.name[0]}</div>
                                     <span className="font-bold text-sm">{profile.name}</span>
                                 </button>
                             );
                         })}
                     </div>
-
                     <div className="space-y-6">
                         {selectedProfileIds.map(pid => {
-                            // Only render the active profile's form (or render all but hide others for state preservation, here we render active one)
                             if (pid !== activeTabProfileId) return null;
-
                             const profile = profiles.find(p => p.id === pid);
                             if (!profile) return null;
                             return (
                                 <div key={pid} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-fade-in">
-                                    <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3">
-                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${profile.category === 'member' ? 'bg-blue-100 text-blue-600' : profile.category === 'parent' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>{profile.name[0]}</div>
-                                        <div><div className="font-bold text-slate-800 text-lg">{profile.name}</div><div className="text-xs text-slate-500">{CATEGORIES[profile.category]}</div></div>
-                                    </div>
+                                    <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center gap-3"><div className={`h-10 w-10 rounded-full flex items-center justify-center text-lg font-bold shrink-0 ${profile.category === 'member' ? 'bg-blue-100 text-blue-600' : profile.category === 'parent' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>{profile.name[0]}</div><div><div className="font-bold text-slate-800 text-lg">{profile.name}</div><div className="text-xs text-slate-500">{CATEGORIES[profile.category]}</div></div></div>
                                     <div className="p-4 space-y-4">
                                         {activeItems.map(item => (
-                                            <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-50 last:border-0 pb-2 last:pb-0">
-                                                <div className="flex-1"><div className="font-bold text-slate-700 text-sm">{item.label}</div><div className="text-[10px] text-slate-400">{item.group}</div></div>
-                                                <div className="w-32 relative">
-                                                    <input type="number" step="0.1" className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg font-bold text-lg text-right focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="-" value={(values[pid] && values[pid][item.id]) || ''} onChange={(e) => handleInputChange(pid, item.id, e.target.value)} />
-                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">{item.unit}</span>
-                                                </div>
-                                            </div>
+                                            <div key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-50 last:border-0 pb-2 last:pb-0"><div className="flex-1"><div className="font-bold text-slate-700 text-sm">{item.label}</div><div className="text-[10px] text-slate-400">{item.group}</div></div><div className="w-32 relative"><input type="number" step="0.1" className="w-full p-2 pr-8 bg-slate-50 border border-slate-200 rounded-lg font-bold text-lg text-right focus:ring-2 focus:ring-green-500 outline-none transition" placeholder="-" value={(values[pid] && values[pid][item.id]) || ''} onChange={(e) => handleInputChange(pid, item.id, e.target.value)} /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">{item.unit}</span></div></div>
                                         ))}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-
-                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 safe-area-pb shadow-lg z-30">
-                        <div className="max-w-3xl mx-auto">
-                            <button onClick={handleSave} className="w-full py-4 bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-100 flex items-center justify-center gap-2 btn-press transition">
-                                <IconSave className="w-5 h-5" /> 全員分をまとめて保存
-                            </button>
-                        </div>
-                    </div>
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 safe-area-pb shadow-lg z-30"><div className="max-w-3xl mx-auto"><button onClick={handleSave} className="w-full py-4 bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-100 flex items-center justify-center gap-2 btn-press transition"><IconSave className="w-5 h-5" /> 全員分をまとめて保存</button></div></div>
                 </div>
             );
         }
 
-        function HistoryView({ profile, records, testItems, onBack, onUpdateRecords, allRecords }) {
-            const [historyTab, setHistoryTab] = useState('list'); // 'list' or 'graph'
+        function HistoryView({ profile, records, testItems, onBack, onUpdateRecords, allRecords, onEditRecord }) {
+            const [historyTab, setHistoryTab] = useState('list');
             const [selectedItemId, setSelectedItemId] = useState('');
             const [deleteConfirmId, setDeleteConfirmId] = useState(null);
             const [detailModalRecord, setDetailModalRecord] = useState(null);
-            
-            // Shared Modal State
             const [showShareModal, setShowShareModal] = useState(false);
             const [shareRecord, setShareRecord] = useState(null);
-
             const activeItems = testItems.filter(i => i.active);
 
-            useEffect(() => {
-                if (!selectedItemId && activeItems.length > 0) setSelectedItemId(activeItems[0].id);
-            }, [activeItems]);
+            useEffect(() => { if (!selectedItemId && activeItems.length > 0) setSelectedItemId(activeItems[0].id); }, [activeItems]);
 
             const handleDelete = (recordId, e) => {
                 e.stopPropagation();
@@ -1482,91 +1300,54 @@
             
             const handleOpenShare = () => {
                 setShareRecord(detailModalRecord);
-                setDetailModalRecord(null); // Close detail modal
+                setDetailModalRecord(null);
                 setShowShareModal(true);
             };
 
+            const handleEdit = (record) => {
+                setDetailModalRecord(null); // close modal
+                onEditRecord(record);
+            };
+
             const sortedRecords = [...records].sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            const chartData = sortedRecords.map(r => ({
-                date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }),
-                value: r.values[selectedItemId]
-            }));
+            const chartData = sortedRecords.map(r => ({ date: new Date(r.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }), value: r.values[selectedItemId] }));
             const currentItem = activeItems.find(i => i.id === selectedItemId);
 
             return (
                 <div className="animate-fade-in space-y-6">
-                    <div className="flex items-center gap-3 mb-2">
-                        <h2 className="text-xl font-bold text-slate-800">成長の記録</h2>
-                    </div>
-
-                    {/* Tab Switcher */}
+                    <div className="flex items-center gap-3 mb-2"><h2 className="text-xl font-bold text-slate-800">成長の記録</h2></div>
                     <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100 mb-4">
-                        <button 
-                            onClick={() => setHistoryTab('list')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'list' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            <IconCalendar className="w-4 h-4" /> 日付一覧
-                        </button>
-                        <button 
-                            onClick={() => setHistoryTab('graph')}
-                            className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'graph' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            <IconTrendingUp className="w-4 h-4" /> 推移グラフ
-                        </button>
+                        <button onClick={() => setHistoryTab('list')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'list' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><IconCalendar className="w-4 h-4" /> 日付一覧</button>
+                        <button onClick={() => setHistoryTab('graph')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${historyTab === 'graph' ? 'bg-green-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}><IconTrendingUp className="w-4 h-4" /> 推移グラフ</button>
                     </div>
 
-                    {records.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-100">まだ記録がありません</div>
-                    ) : (
+                    {records.length === 0 ? <div className="text-center py-16 text-slate-400 bg-white rounded-2xl border border-slate-100">まだ記録がありません</div> : (
                         <>
-                            {/* LIST MODE */}
                             {historyTab === 'list' && (
                                 <div className="space-y-3">
                                     {[...sortedRecords].reverse().map(record => {
-                                        // Pick top 3 recorded items for preview
                                         const recordedItems = activeItems.filter(item => record.values[item.id] != null);
-                                        const previewText = recordedItems.slice(0, 2).map(i => `${i.label}:${record.values[i.id]}`).join(', ');
-                                        const moreCount = Math.max(0, recordedItems.length - 2);
-
                                         return (
                                             <div key={record.id} onClick={() => setDetailModalRecord(record)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group cursor-pointer hover:bg-slate-50 transition relative overflow-hidden">
                                                 <div className="flex items-start gap-3">
-                                                    <div className="bg-green-50 p-2.5 rounded-lg text-green-600 shrink-0 mt-1">
-                                                        <IconCalendar className="w-5 h-5" />
-                                                    </div>
+                                                    <div className="bg-green-50 p-2.5 rounded-lg text-green-600 shrink-0 mt-1"><IconCalendar className="w-5 h-5" /></div>
                                                     <div>
                                                         <div className="font-bold text-slate-800 text-base">{new Date(record.date).toLocaleDateString('ja-JP')}</div>
                                                         <div className="text-xs text-slate-400 mb-1">{new Date(record.date).toLocaleTimeString('ja-JP', {hour: '2-digit', minute:'2-digit'})}</div>
-                                                        <div className="text-xs text-slate-500 line-clamp-1">
-                                                            {recordedItems.length > 0 ? (
-                                                                <>
-                                                                    <span className="font-medium text-slate-600">記録: {recordedItems.length}種目</span>
-                                                                    {/* ( {previewText}{moreCount > 0 ? ` ...他${moreCount}件` : ''} ) */}
-                                                                </>
-                                                            ) : '記録なし'}
-                                                        </div>
+                                                        <div className="text-xs text-slate-500 line-clamp-1"><span className="font-medium text-slate-600">記録: {recordedItems.length}種目</span></div>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <IconChevronRight className="w-5 h-5 text-slate-300" />
-                                                    <button onClick={(e) => handleDelete(record.id, e)} className={`p-2 rounded-full transition ${deleteConfirmId === record.id ? 'bg-red-500 text-white w-16 text-xs font-bold' : 'text-slate-200 hover:text-red-500 hover:bg-red-50'}`}>
-                                                        {deleteConfirmId === record.id ? '削除' : <IconTrash className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
+                                                <div className="flex items-center gap-3"><IconChevronRight className="w-5 h-5 text-slate-300" /><button onClick={(e) => handleDelete(record.id, e)} className={`p-2 rounded-full transition ${deleteConfirmId === record.id ? 'bg-red-500 text-white w-16 text-xs font-bold' : 'text-slate-200 hover:text-red-500 hover:bg-red-50'}`}>{deleteConfirmId === record.id ? '削除' : <IconTrash className="w-5 h-5" />}</button></div>
                                             </div>
                                         );
                                     })}
                                 </div>
                             )}
-
-                            {/* GRAPH MODE */}
                             {historyTab === 'graph' && (
                                 <div className="animate-fade-in">
                                     <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto whitespace-nowrap hide-scrollbar flex gap-2 mb-4">
                                         {activeItems.map(item => <button key={item.id} onClick={() => setSelectedItemId(item.id)} className={`inline-block px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${selectedItemId === item.id ? 'bg-green-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'}`}>{item.label}</button>)}
                                     </div>
-
                                     {currentItem && (
                                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                                             <h3 className="text-sm text-slate-500 mb-4 font-bold flex items-center gap-2"><IconTrendingUp className="text-green-600 w-4 h-4" /> {currentItem.label} ({currentItem.unit})</h3>
@@ -1575,14 +1356,7 @@
                                                     <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                         <XAxis dataKey="date" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <YAxis 
-                                                            stroke="#94a3b8" 
-                                                            fontSize={10} 
-                                                            tickLine={false} 
-                                                            axisLine={false} 
-                                                            width={30}
-                                                            reversed={currentItem?.type === 'lower_is_better'}
-                                                        />
+                                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} width={30} reversed={currentItem?.type === 'lower_is_better'} />
                                                         <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
                                                         <Line connectNulls type="monotone" dataKey="value" stroke="#16a34a" strokeWidth={3} dot={{ fill: '#16a34a', strokeWidth: 2, r: 4, stroke: '#fff' }} activeDot={{ r: 6 }} />
                                                     </LineChart>
@@ -1594,26 +1368,10 @@
                             )}
                         </>
                     )}
-                    
-                    {/* Detail Modal */}
                     {detailModalRecord && (
-                        <RecordDetailModal 
-                            record={detailModalRecord} 
-                            profile={profile} 
-                            testItems={testItems} 
-                            onClose={() => setDetailModalRecord(null)}
-                            onShare={handleOpenShare}
-                        />
+                        <RecordDetailModal record={detailModalRecord} profile={profile} testItems={testItems} onClose={() => setDetailModalRecord(null)} onShare={handleOpenShare} onEdit={handleEdit} />
                     )}
-
-                    {/* Share Modal */}
-                    {showShareModal && shareRecord && (
-                        <ShareModal
-                            record={shareRecord}
-                            profile={profile}
-                            onClose={() => setShowShareModal(false)}
-                        />
-                    )}
+                    {showShareModal && shareRecord && <ShareModal record={shareRecord} profile={profile} onClose={() => setShowShareModal(false)} />}
                 </div>
             );
         }
@@ -1637,15 +1395,9 @@
 
             return (
                 <div className="animate-fade-in pb-10">
-                    <div className="flex items-center gap-3 mb-6">
-                        <button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button>
-                        <h2 className="text-xl font-bold">種目設定</h2>
-                    </div>
+                    <div className="flex items-center gap-3 mb-6"><button onClick={onBack} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><IconArrowLeft className="w-6 h-6" /></button><h2 className="text-xl font-bold">種目設定</h2></div>
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <h3 className="font-bold text-slate-700">登録済みの種目</h3>
-                            <button onClick={() => setIsAdding(!isAdding)} className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold hover:bg-green-700 transition"><IconPlus className="w-4 h-4" /> 追加</button>
-                        </div>
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700">登録済みの種目</h3><button onClick={() => setIsAdding(!isAdding)} className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold hover:bg-green-700 transition"><IconPlus className="w-4 h-4" /> 追加</button></div>
                         {isAdding && (
                             <form onSubmit={addItem} className="p-4 bg-green-50 border-b border-green-100 space-y-3">
                                 <div><label className="text-xs font-bold text-green-800">種目名</label><input required className="w-full p-2 rounded-lg border border-green-200" placeholder="例: ハンドボール投げ" value={newParams.label} onChange={e => setNewParams({...newParams, label: e.target.value})} /></div>
@@ -1660,10 +1412,7 @@
                         <div className="divide-y divide-slate-100">
                             {testItems.map(item => (
                                 <div key={item.id} className={`p-4 flex items-center justify-between transition ${!item.active ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'}`}>
-                                    <div>
-                                        <div className="font-bold text-slate-800 flex items-center gap-2">{item.label}{!item.active && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-bold">非表示</span>}</div>
-                                        <div className="text-xs text-slate-400 mt-0.5 font-medium">{item.group} • 単位: {item.unit}</div>
-                                    </div>
+                                    <div><div className="font-bold text-slate-800 flex items-center gap-2">{item.label}{!item.active && <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-bold">非表示</span>}</div><div className="text-xs text-slate-400 mt-0.5 font-medium">{item.group} • 単位: {item.unit}</div></div>
                                     <button onClick={() => toggleActive(item.id)} className={`p-2 rounded-full transition ${item.active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-200'}`} title={item.active ? '非表示にする' : '表示する'}>{item.active ? <IconEye className="w-5 h-5" /> : <IconEyeOff className="w-5 h-5" />}</button>
                                 </div>
                             ))}
