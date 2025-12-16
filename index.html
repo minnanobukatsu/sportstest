@@ -40,7 +40,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
         const RechartsObj = window.Recharts || {};
-        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ReferenceLine } = RechartsObj;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } = RechartsObj;
 
         // --- アイコン定義 (SVG) ---
         const IconUser = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
@@ -108,17 +108,18 @@
             parent: '保護者'
         };
 
+        // min: 0点相当, max: 100点相当の目安 (全年齢共通の固定基準)
         const DEFAULT_ITEMS = [
-            { id: 'courtSprint', label: 'バスケットコート走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 1 },
-            { id: 'courtShuttle', label: 'バスケットコートシャトル走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 2 },
-            { id: 'sideSteps', label: '20秒反復横跳び', unit: '回', type: 'higher_is_better', group: '敏捷性', active: true, order: 3 },
-            { id: 'sitUps', label: '30秒上体起こし', unit: '回', type: 'higher_is_better', group: '筋力', active: true, order: 4 },
-            { id: 'trunkExtension', label: '上体反らし', unit: 'cm', type: 'higher_is_better', group: '柔軟性', active: true, order: 5 },
-            { id: 'verticalJump', label: '垂直跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 6 },
-            { id: 'standingLongJump', label: '立ち幅跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 7 },
-            { id: 'runningLongJump', label: '走り幅跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 8 },
-            { id: 'ballThrow', label: 'バスケットボール投げ', unit: 'm', type: 'higher_is_better', group: '投力', active: true, order: 9 },
-            { id: 'origamiTotal', label: '折り紙キャッチ(合計)', unit: '回', type: 'higher_is_better', group: '器用さ', active: true, order: 10 },
+            { id: 'courtSprint', label: 'バスケットコート走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 1, min: 15, max: 4 },
+            { id: 'courtShuttle', label: 'バスケットコートシャトル走', unit: '秒', type: 'lower_is_better', group: '走力', active: true, order: 2, min: 20, max: 8 },
+            { id: 'sideSteps', label: '20秒反復横跳び', unit: '回', type: 'higher_is_better', group: '敏捷性', active: true, order: 3, min: 0, max: 80 },
+            { id: 'sitUps', label: '30秒上体起こし', unit: '回', type: 'higher_is_better', group: '筋力', active: true, order: 4, min: 0, max: 50 },
+            { id: 'trunkExtension', label: '上体反らし', unit: 'cm', type: 'higher_is_better', group: '柔軟性', active: true, order: 5, min: 0, max: 80 },
+            { id: 'verticalJump', label: '垂直跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 6, min: 0, max: 80 },
+            { id: 'standingLongJump', label: '立ち幅跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 7, min: 0, max: 250 },
+            { id: 'runningLongJump', label: '走り幅跳び', unit: 'cm', type: 'higher_is_better', group: '跳躍力', active: true, order: 8, min: 0, max: 450 },
+            { id: 'ballThrow', label: 'バスケットボール投げ', unit: 'm', type: 'higher_is_better', group: '投力', active: true, order: 9, min: 0, max: 40 },
+            { id: 'origamiTotal', label: '折り紙キャッチ(合計)', unit: '回', type: 'higher_is_better', group: '器用さ', active: true, order: 10, min: 0, max: 10 },
         ];
 
         const GROUPS = ['走力', '敏捷性', '筋力', '柔軟性', '跳躍力', '投力', '器用さ', 'その他'];
@@ -176,37 +177,22 @@
             return 10;
         };
 
-        const getTargetValue = (itemId, age, gender) => {
-            const effectiveAge = Math.min(18, Math.max(6, age));
-            const isMale = gender === 'male';
-            const growthFactor = effectiveAge - 6;
-
-            switch (itemId) {
-                case 'courtSprint': return Math.max(4.0, 10.0 - (growthFactor * 0.4));
-                case 'courtShuttle': return Math.max(8.0, 16.0 - (growthFactor * 0.5));
-                case 'sideSteps': return 25 + (growthFactor * (isMale ? 3.5 : 3.0));
-                case 'sitUps': return 12 + (growthFactor * 2.0);
-                case 'trunkExtension': return 30 + (growthFactor * 2.0);
-                case 'verticalJump': return 25 + (growthFactor * (isMale ? 3.5 : 2.5));
-                case 'standingLongJump': return 115 + (growthFactor * (isMale ? 12 : 10));
-                case 'runningLongJump': return 200 + (growthFactor * 15);
-                case 'ballThrow': return 8 + (growthFactor * (isMale ? 3.0 : 2.0));
-                case 'origamiTotal': return 10;
-                default: return 100;
-            }
-        };
-
-        const calculateScore = (val, item, age, gender) => {
+        // スコア計算 (0-100に正規化)
+        const calculateScore = (val, item) => {
             if (val === null || val === undefined) return 0;
-            const target = getTargetValue(item.id, age, gender);
+            
             let score = 0;
-            if (item.type === 'lower_is_better') {
-                if (val <= target) return 100;
-                const zeroPoint = target * 2.5;
-                score = ((zeroPoint - val) / (zeroPoint - target)) * 100;
-            } else {
-                score = (val / target) * 100;
-            }
+            const min = item.min ?? 0;
+            const max = item.max ?? 100;
+            const range = max - min;
+            
+            // 0除算防止
+            if (range === 0) return 0;
+
+            const diff = val - min;
+            score = (diff / range) * 100;
+
+            // クリップ
             return Math.min(100, Math.max(0, score));
         };
 
@@ -548,6 +534,41 @@
                     </div>
                 </div>
             );
+        };
+
+        // --- カスタムツールチップ (単位付き) ---
+        const CustomRadarTooltip = ({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+                return (
+                    <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg text-xs">
+                        <p className="font-bold mb-2 text-slate-700">{label}</p>
+                        {payload.map((entry, index) => {
+                            const dataKey = entry.dataKey;
+                            // A: 今回, B: 前回, C: 相手
+                            let rawVal = null;
+                            let unit = '';
+                            
+                            if (entry.payload) {
+                                unit = entry.payload.unit || '';
+                                if (dataKey === 'A') rawVal = entry.payload.valA;
+                                else if (dataKey === 'B') rawVal = entry.payload.valB;
+                                else if (dataKey === 'C') rawVal = entry.payload.valC;
+                            }
+
+                            if (rawVal == null) return null;
+
+                            return (
+                                <div key={index} className="flex items-center gap-2 mb-1">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.stroke }}></div>
+                                    <span style={{ color: entry.stroke }}>{entry.name}:</span>
+                                    <span className="font-bold text-slate-700">{rawVal}{unit}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            }
+            return null;
         };
 
         // --- メインコンポーネント ---
@@ -951,23 +972,45 @@
                     // Compare score is calculated based on THEIR age/gender criteria (fair comparison of ability?) or YOUR criteria?
                     const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
 
-                    if (!groupScores[item.group]) groupScores[item.group] = { currentTotal: 0, prevTotal: 0, compareTotal: 0, count: 0 };
-                    
-                    if (cVal != null) {
-                        groupScores[item.group].currentTotal += cScore;
-                        groupScores[item.group].count++;
-                    }
-                    if (pVal != null) groupScores[item.group].prevTotal += pScore;
-                    if (cmpVal != null) groupScores[item.group].compareTotal += cmpScore;
+                    return {
+                        subject: item.label, // 項目名を種目名にする
+                        id: item.id,
+                        unit: item.unit,
+                        // グラフ描画用スコア
+                        A: cVal != null ? cScore : 0, 
+                        B: pVal != null ? pScore : 0,
+                        C: (compareData && cmpVal != null) ? cmpScore : 0,
+                        // ツールチップ表示用の生データ
+                        valA: cVal,
+                        valB: pVal,
+                        valC: cmpVal,
+                        fullMark: 100
+                    };
                 });
+                
+                // Use activeItems to generate radar data directly instead of grouping
+                return activeItems.map(item => {
+                    const cVal = latestRecord.values[item.id];
+                    const pVal = previousRecord?.values[item.id];
+                    const cmpVal = compareData?.values[item.id];
 
-                return Object.keys(groupScores).map(group => ({
-                    subject: group,
-                    A: groupScores[group].count > 0 ? groupScores[group].currentTotal / groupScores[group].count : 0,
-                    B: groupScores[group].count > 0 ? groupScores[group].prevTotal / groupScores[group].count : 0,
-                    C: (compareData && groupScores[group].count > 0) ? groupScores[group].compareTotal / groupScores[group].count : 0,
-                    fullMark: 100
-                })).filter(d => d.A > 0 || d.B > 0 || d.C > 0 || ['走力', '筋力', '跳躍力'].includes(d.subject));
+                    const cScore = calculateScore(cVal ?? 0, item, age, profile.gender);
+                    const pScore = calculateScore(pVal ?? 0, item, age, profile.gender);
+                    const cmpScore = compareData ? calculateScore(cmpVal ?? 0, item, compareAge, compareData.gender) : 0;
+                    
+                    return {
+                        subject: item.label,
+                        id: item.id,
+                        unit: item.unit,
+                        A: cVal != null ? cScore : 0, 
+                        B: pVal != null ? pScore : 0,
+                        C: (compareData && cmpVal != null) ? cmpScore : 0,
+                        valA: cVal,
+                        valB: pVal,
+                        valC: cmpVal,
+                        fullMark: 100
+                    };
+                });
             }, [latestRecord, previousRecord, compareData, activeItems, age, profile.gender]);
 
             const historyChartData = sortedRecords.map(r => ({
@@ -1049,11 +1092,11 @@
                                     
                                     {latestRecord ? (
                                         <>
-                                            <div className="h-[250px] w-full -ml-2">
+                                            <div className="h-[300px] w-full -ml-2">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                                                         <PolarGrid stroke="#e2e8f0" />
-                                                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 'bold' }} />
+                                                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
                                                         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                                                         
                                                         {!compareData && <Radar name="前回" dataKey="B" stroke="#cbd5e1" strokeWidth={2} fill="#cbd5e1" fillOpacity={0.2} />}
@@ -1061,6 +1104,7 @@
                                                         {compareData && <Radar name="相手" dataKey="C" stroke="#fb923c" strokeWidth={3} fill="#fdba74" fillOpacity={0.4} />}
 
                                                         <Radar name="今回" dataKey="A" stroke="#16a34a" strokeWidth={3} fill="#22c55e" fillOpacity={0.4} />
+                                                        <Tooltip content={<CustomRadarTooltip />} />
                                                     </RadarChart>
                                                 </ResponsiveContainer>
                                             </div>
